@@ -14,7 +14,9 @@
     "icon": "node tools/make-icon.js",
     "shortcut": "electron tools/create-shortcuts.js",
     "dist": "electron-builder --win",
-    "check:i18n": "node tools/check-i18n.js"
+    "check:i18n": "node tools/check-i18n.js",
+    "pack:streamdeck": "node tools/pack-streamdeck.js",
+    "icons:streamdeck": "electron tools/make-streamdeck-assets.js"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -32,7 +34,8 @@
       "package.json",
       "server/**/*",
       "public/**/*",
-      "assets/**/*"
+      "assets/**/*",
+      "integrations/**/*"
     ],
     "asarUnpack": [
       "server/ppt-bridge.ps1",

@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Glanceline</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; padding: 10px 14px 14px; background: #2d2d2d; color: #d8d8d8; font: 12px/1.45 "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; }
+    .row { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; margin: 8px 0; }
+    label { color: #9a9a9a; text-align: right; }
+    input, select { width: 100%; box-sizing: border-box; padding: 5px 7px; border: 1px solid #555; border-radius: 3px; background: #3d3d3d; color: #e8e8e8; font: inherit; }
+    input:focus, select:focus { outline: 1px solid #c58b4b; border-color: #c58b4b; }
+    .status { grid-column: 2; font-size: 11px; color: #9a9a9a; }
+    .status.ok { color: #7fc67f; }
+    .status.bad { color: #e07a6e; }
+    .hint { grid-column: 2; font-size: 11px; color: #8a8a8a; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="row" id="rowMode" hidden>
+    <label for="mode" data-t="mode"></label>
+    <select id="mode"></select>
+  </div>
+  <div class="row" id="rowDir" hidden>
+    <label for="dir" data-t="dir"></label>
+    <select id="dir"></select>
+  </div>
+  <div class="row" id="rowType" hidden>
+    <label for="type" data-t="action"></label>
+    <select id="type"></select>
+  </div>
+  <div class="row">
+    <label for="url">Glanceline</label>
+    <input id="url" spellcheck="false" placeholder="http://127.0.0.1:4890">
+    <span class="status" id="status"></span>
+    <span class="hint" data-t="urlHint"></span>
+  </div>
+
+  <script>
+    'use strict';
+    const T = {
+      de: {
+        mode: 'Modus', dir: 'Richtung', action: 'Aktion', back: 'Zurück', forward: 'Vor', pick: '– Aktion wählen –',
+        online: 'Verbunden ✓', offline: 'Nicht erreichbar – läuft Glanceline?',
+        urlHint: 'Auf demselben PC nichts ändern. Für einen anderen PC den Handy-Link aus dem Glanceline-Panel einfügen.',
+        modes: { chat: 'Chat', script: 'Skript', obs: 'OBS', ppt: 'PowerPoint', camera: 'Kamera' },
+      },
+      en: {
+        mode: 'Mode', dir: 'Direction', action: 'Action', back: 'Back', forward: 'Forward', pick: '– pick an action –',
+        online: 'Connected ✓', offline: 'Not reachable – is Glanceline running?',
+        urlHint: 'Leave as is on the same PC. For another PC paste the phone link from the Glanceline panel.',
+        modes: { chat: 'Chat', script: 'Script', obs: 'OBS', ppt: 'PowerPoint', camera: 'Camera' },
+      },
+    };
+    let ws = null;
+    let uuid = '';
+    let action = '';
+    let settings = {};
+    let global = {};
+    let txt = T.en;
+    let catalog = null;
+    const $ = (id) => document.getElementById(id);
+    const send = (obj) => ws && ws.readyState === 1 && ws.send(JSON.stringify(obj));
+    const kind = () => action.replace('io.github.crisiodev.glanceline.', '');
+
+    function options(sel, list, value) {
+      sel.innerHTML = '';
+      for (const [v, l] of list) {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = l;
+        sel.append(o);
+      }
+      sel.value = value;
+    }
+
+    function render() {
+      document.querySelectorAll('[data-t]').forEach((n) => { n.textContent = txt[n.dataset.t]; });
+      const k = kind();
+      $('rowMode').hidden = k !== 'mode';
+      $('rowDir').hidden = k !== 'scroll';
+      $('rowType').hidden = k !== 'action';
+      const modes = catalog ? catalog.modes.map((m) => [m.id, m.label]) : Object.entries(txt.modes);
+      options($('mode'), modes, settings.mode || 'script');
+      options($('dir'), [['forward', txt.forward], ['back', txt.back]], settings.dir || 'forward');
+      const acts = catalog ? catalog.actions.map((a) => [a.type, a.label]) : [];
+      if (settings.type && !acts.some(([v]) => v === settings.type)) acts.push([settings.type, settings.type]);
+      options($('type'), [['', txt.pick], ...acts], settings.type || '');
+      if (document.activeElement !== $('url')) $('url').value = global.url || '';
+    }
+
+    function setStatus(online) {
+      const s = $('status');
+      s.textContent = online ? txt.online : txt.offline;
+      s.className = `status ${online ? 'ok' : 'bad'}`;
+    }
+
+    function save(key, value) {
+      settings[key] = value;
+      send({ event: 'setSettings', context: uuid, payload: settings });
+    }
+
+    $('mode').addEventListener('change', (e) => save('mode', e.target.value));
+    $('dir').addEventListener('change', (e) => save('dir', e.target.value));
+    $('type').addEventListener('change', (e) => save('type', e.target.value));
+    $('url').addEventListener('change', (e) => {
+      global.url = e.target.value.trim();
+      send({ event: 'setGlobalSettings', context: uuid, payload: global });
+      setTimeout(() => send({ event: 'sendToPlugin', action, context: uuid, payload: { refresh: true } }), 1500);
+    });
+
+    // Wird von der Stream-Deck-App aufgerufen
+    window.connectElgatoStreamDeckSocket = (port, inUuid, registerEvent, info, actionInfo) => {
+      uuid = inUuid;
+      try {
+        const i = JSON.parse(info);
+        if (/^de/.test(i.application.language || '')) txt = T.de;
+      } catch { /* Englisch */ }
+      try {
+        const a = JSON.parse(actionInfo);
+        action = a.action;
+        settings = (a.payload && a.payload.settings) || {};
+      } catch { /* leer */ }
+      ws = new WebSocket(`ws://127.0.0.1:${port}`);
+      ws.onopen = () => {
+        send({ event: registerEvent, uuid });
+        send({ event: 'getGlobalSettings', context: uuid });
+        render();
+      };
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.event === 'didReceiveGlobalSettings') {
+          global = (msg.payload && msg.payload.settings) || {};
+          render();
+        } else if (msg.event === 'didReceiveSettings') {
+          settings = (msg.payload && msg.payload.settings) || {};
+          render();
+        } else if (msg.event === 'sendToPropertyInspector') {
+          catalog = msg.payload.catalog || catalog;
+          setStatus(msg.payload.online);
+          render();
+        }
+      };
+    };
+  </script>
+</body>
+</html>

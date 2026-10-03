@@ -1,0 +1,12 @@
+{
+  "Description": "Steuert den Glanceline-Teleprompter: Modi, Skript, Scrollen mit Halten, Show-Timer und mehr – mit Live-Zustand auf den Tasten.",
+  "Name": "Glanceline",
+  "io.github.crisiodev.glanceline.mode": { "Name": "Prompter-Modus", "Tooltip": "Schaltet den Prompter auf Chat, Skript, OBS, PowerPoint oder Kamera. Leuchtet, solange der Modus aktiv ist." },
+  "io.github.crisiodev.glanceline.play": { "Name": "Skript Start / Pause", "Tooltip": "Startet oder pausiert das Skript. Zeigt Fortschritt und Tempo." },
+  "io.github.crisiodev.glanceline.scroll": { "Name": "Scrollen (halten)", "Tooltip": "Antippen für eine Zeile, halten für flüssiges Scrollen." },
+  "io.github.crisiodev.glanceline.timer": { "Name": "Show-Timer", "Tooltip": "Zeigt Show-Timer oder Countdown. Drücken startet/pausiert, eine Sekunde halten setzt zurück." },
+  "io.github.crisiodev.glanceline.blackout": { "Name": "Blackout", "Tooltip": "Prompter schwarz schalten. Leuchtet, solange aktiv." },
+  "io.github.crisiodev.glanceline.action": { "Name": "Glanceline-Aktion", "Tooltip": "Jede Glanceline-Aktion: Einschübe, Regie-Nachricht, Sprachsteuerung, Abschnitte …" },
+  "io.github.crisiodev.glanceline.speed": { "Name": "Skript-Tempo (Drehregler)", "Tooltip": "Drehen ändert das Lesetempo, Drücken startet/pausiert.", "Encoder": { "TriggerDescription": { "Rotate": "Tempo", "Push": "Start / Pause" } } },
+  "Localization": {}
+}

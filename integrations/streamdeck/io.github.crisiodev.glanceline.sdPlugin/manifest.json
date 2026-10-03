@@ -1,0 +1,83 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "io.github.crisiodev.glanceline",
+  "Name": "Glanceline",
+  "Version": "0.3.0.0",
+  "Author": "Crisio",
+  "URL": "https://github.com/CrisioDev/glanceline",
+  "Description": "Control the Glanceline teleprompter: modes, script, hold-to-scroll, show timer and more – with live state on your keys.",
+  "Category": "Glanceline",
+  "CategoryIcon": "imgs/category",
+  "Icon": "imgs/plugin",
+  "CodePath": "bin/plugin.js",
+  "Nodejs": { "Version": "20" },
+  "SDKVersion": 2,
+  "Software": { "MinimumVersion": "6.6" },
+  "OS": [
+    { "Platform": "windows", "MinimumVersion": "10" },
+    { "Platform": "mac", "MinimumVersion": "12" }
+  ],
+  "Actions": [
+    {
+      "UUID": "io.github.crisiodev.glanceline.mode",
+      "Name": "Prompter mode",
+      "Tooltip": "Switch the prompter to chat, script, OBS, PowerPoint or camera. Lights up while active.",
+      "Icon": "imgs/action-mode",
+      "PropertyInspectorPath": "pi/inspector.html",
+      "States": [{ "Image": "imgs/key", "ShowTitle": true }]
+    },
+    {
+      "UUID": "io.github.crisiodev.glanceline.play",
+      "Name": "Script start / pause",
+      "Tooltip": "Starts or pauses the scrolling script. Shows progress and speed.",
+      "Icon": "imgs/action-play",
+      "PropertyInspectorPath": "pi/inspector.html",
+      "States": [{ "Image": "imgs/key", "ShowTitle": true }]
+    },
+    {
+      "UUID": "io.github.crisiodev.glanceline.scroll",
+      "Name": "Scroll (hold)",
+      "Tooltip": "Tap for one line, hold to scroll smoothly.",
+      "Icon": "imgs/action-scroll",
+      "PropertyInspectorPath": "pi/inspector.html",
+      "States": [{ "Image": "imgs/key", "ShowTitle": true }]
+    },
+    {
+      "UUID": "io.github.crisiodev.glanceline.timer",
+      "Name": "Show timer",
+      "Tooltip": "Shows the show timer or countdown. Press to start/pause, hold for one second to reset.",
+      "Icon": "imgs/action-timer",
+      "PropertyInspectorPath": "pi/inspector.html",
+      "States": [{ "Image": "imgs/key", "ShowTitle": true }]
+    },
+    {
+      "UUID": "io.github.crisiodev.glanceline.blackout",
+      "Name": "Blackout",
+      "Tooltip": "Blank the prompter. Lights up while active.",
+      "Icon": "imgs/action-blackout",
+      "PropertyInspectorPath": "pi/inspector.html",
+      "States": [{ "Image": "imgs/key", "ShowTitle": true }]
+    },
+    {
+      "UUID": "io.github.crisiodev.glanceline.action",
+      "Name": "Glanceline action",
+      "Tooltip": "Any Glanceline action: inserts, director message, voice tracking, sections …",
+      "Icon": "imgs/action-any",
+      "PropertyInspectorPath": "pi/inspector.html",
+      "States": [{ "Image": "imgs/key", "ShowTitle": true }]
+    },
+    {
+      "UUID": "io.github.crisiodev.glanceline.speed",
+      "Name": "Script speed (dial)",
+      "Tooltip": "Turn to change the reading speed, press to start/pause.",
+      "Icon": "imgs/action-speed",
+      "PropertyInspectorPath": "pi/inspector.html",
+      "Controllers": ["Encoder", "Keypad"],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": { "Rotate": "Speed", "Push": "Start / pause" }
+      },
+      "States": [{ "Image": "imgs/key", "ShowTitle": true }]
+    }
+  ]
+}

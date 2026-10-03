@@ -10,6 +10,7 @@ const { TwitchChat } = require('./twitch');
 const { YouTubeChat } = require('./youtube');
 const { KickChat } = require('./kick');
 const { ScriptFolder } = require('./library');
+const { zipFolder } = require('./zip');
 const { ObsClient } = require('./obs');
 const { PowerPointWatcher } = require('./powerpoint');
 const { VoiceEngine, VOICE_LANGUAGES } = require('./voice');
@@ -30,7 +31,14 @@ const MIME = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
-const ROLES = ['main', 'preview', 'panel'];
+const STREAMDECK_PLUGIN = path.join(__dirname, '..', 'integrations', 'streamdeck', 'io.github.crisiodev.glanceline.sdPlugin');
+
+// Ist die Stream-Deck-Software da, ist unser Plugin schon installiert?
+function streamDeckInfo() {
+  const base = process.platform === 'win32' ? path.join(process.env.APPDATA || '', 'Elgato', 'StreamDeck') : path.join(os.homedir(), 'Library', 'Application Support', 'com.elgato.StreamDeck');
+  return { found: fs.existsSync(base), installed: fs.existsSync(path.join(base, 'Plugins', path.basename(STREAMDECK_PLUGIN))) };
+}
+const ROLES = ['main', 'preview', 'panel', 'api']; // api = Stream Deck, Companion & Co.
 const HISTORY_SIZE = 120;
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -145,7 +153,7 @@ class Glanceline extends EventEmitter {
       hotkeys: { errors: [], suspended: false },
       clients: { main: 0, preview: 0, panel: 0 },
       lan: { enabled: false, port: this.port, urls: [] },
-      app: { desktop: false, autostart: false },
+      app: { desktop: false, autostart: false, streamDeck: streamDeckInfo() },
       voice: {},
       mics: [],
     };
@@ -362,6 +370,12 @@ class Glanceline extends EventEmitter {
       if (p === '/prompter') return this._file(res, 'prompter.html');
       if (p === '/events') return this._sse(req, res, url);
       if (p === '/api/state') return sendJson(res, this._snapshot());
+      if (p === '/api/actions') return sendJson(res, this._actionList(url.searchParams.get('lang')));
+      if (p === '/api/streamdeck-plugin') {
+        const data = zipFolder(STREAMDECK_PLUGIN);
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="Glanceline.streamDeckPlugin"', 'Content-Length': data.length });
+        return res.end(data);
+      }
       if (p === '/api/obs-frame') return this._obsFrame(res, url);
       if (p === '/api/fonts') return sendJson(res, { fonts: await systemFonts() });
       if (p === '/api/obs-sources') {
@@ -469,6 +483,17 @@ class Glanceline extends EventEmitter {
     };
   }
 
+  // Für Integrationen (Stream Deck, Companion): alle Aktionen und Modi mit Namen in der gewünschten Sprache
+  _actionList(lang) {
+    const l = ['de', 'en'].includes(lang) ? lang : this.lang();
+    return {
+      ok: true,
+      lang: l,
+      actions: Object.keys(DEFAULT_HOTKEYS).map((type) => ({ type, label: t(l, `action.${type}`) })),
+      modes: MODES.map((id) => ({ id, label: t(l, `mode.${id}`) })),
+    };
+  }
+
   _liveOut() {
     this.live.now = Date.now();
     return this.live;
@@ -493,7 +518,7 @@ class Glanceline extends EventEmitter {
   }
 
   _countClients() {
-    const counts = { main: 0, preview: 0, panel: 0 };
+    const counts = { main: 0, preview: 0, panel: 0, api: 0 };
     for (const c of this.clients) counts[c.role]++;
     this.live.clients = counts;
     this.touch();
@@ -525,7 +550,7 @@ class Glanceline extends EventEmitter {
   _chat(m) {
     this.history.push(m);
     if (this.history.length > HISTORY_SIZE) this.history.splice(0, this.history.length - HISTORY_SIZE);
-    this.broadcast('chat', m, (c) => c.role !== 'panel');
+    this.broadcast('chat', m, (c) => c.role === 'main' || c.role === 'preview');
   }
 
   _chatClear(c) {
@@ -533,7 +558,7 @@ class Glanceline extends EventEmitter {
     else if (c.all) this.history = [];
     else if (c.userId) this.history = this.history.filter((m) => !(m.kind === 'msg' && m.user.id === c.userId));
     else if (c.msgId) this.history = this.history.filter((m) => m.id !== c.msgId);
-    this.broadcast('chatclear', c, (cl) => cl.role !== 'panel');
+    this.broadcast('chatclear', c, (cl) => cl.role === 'main' || cl.role === 'preview');
   }
 
   // Beispielnachrichten mit den echten Kanal-Emotes – zum Einstellen von Schrift & Emote-Größe
@@ -757,6 +782,19 @@ class Glanceline extends EventEmitter {
         break;
       }
 
+      case 'streamdeck:install': {
+        // Plugin-Datei öffnen – die Stream-Deck-Software installiert bzw. aktualisiert es dann selbst
+        const file = path.join(os.tmpdir(), 'Glanceline.streamDeckPlugin');
+        fs.writeFileSync(file, zipFolder(STREAMDECK_PLUGIN));
+        this.emit('openPath', file);
+        for (const ms of [5000, 15000, 40000]) {
+          setTimeout(() => {
+            this.live.app.streamDeck = streamDeckInfo();
+            this.touch();
+          }, ms);
+        }
+        break;
+      }
       case 'library:pick':
         this.emit('pickFolder');
         break;
