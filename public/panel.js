@@ -48,6 +48,9 @@
     send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
     insert: '<polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
     phone: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+    folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>',
   };
@@ -832,6 +835,7 @@
     renderVoice();
     renderPhase1();
     renderShow();
+    renderFolder();
     renderConn();
     renderNetwork();
     renderPhone();
@@ -1201,7 +1205,7 @@
       ? scripts.items
           .map(
             (it) =>
-              `<li><button data-script-id="${esc(it.id)}" class="${it.id === ed.id ? 'sel' : ''}"><strong>${esc(it.title || t('scripts.untitled'))}${it.id === scripts.activeId ? `<span class="on-air">${esc(t('scripts.onAir'))}</span>` : ''}</strong><small>${esc(t('scripts.listMeta', { words: countWords(it.body), date: fmtDate(it.updatedAt) }))}</small></button></li>`,
+              `<li><button data-script-id="${esc(it.id)}" class="${it.id === ed.id ? 'sel' : ''}"><strong>${esc(it.title || t('scripts.untitled'))}${it.file ? `<span class="linked">${esc(fileExt(it.file))}</span>` : ''}${it.id === scripts.activeId ? `<span class="on-air">${esc(t('scripts.onAir'))}</span>` : ''}</strong><small>${esc(t('scripts.listMeta', { words: countWords(it.body), date: fmtDate(it.updatedAt) }))}</small></button></li>`,
           )
           .join('')
       : `<li class="hint">${esc(t('scripts.empty'))}</li>`;
@@ -1217,10 +1221,14 @@
     act.disabled = !it || isActive;
     setText(act.querySelector('span'), isActive ? t('scripts.isActive') : t('scripts.activate'));
     const del = $('#deleteScript');
-    del.disabled = !it;
+    del.disabled = !it || Boolean(it.file);
+    $('#exportScript').disabled = !it;
+    const ln = $('#linkedNote');
+    ln.hidden = !(it && it.file);
+    if (it && it.file) setText(ln.querySelector('span'), t('library.linked', { file: it.file }));
     if (!ed.deleteArmed) setText(del.querySelector('span'), t('scripts.delete'));
     const ss = $('#saveState');
-    setText(ss, !it ? '' : ed.dirty ? t('scripts.unsaved') : t('scripts.saved'));
+    setText(ss, !it ? '' : it.file ? t('library.liveSync') : ed.dirty ? t('scripts.unsaved') : t('scripts.saved'));
     ss.classList.toggle('dirty', ed.dirty);
   }
 
@@ -1240,14 +1248,17 @@
     disarmDelete();
     titleInput.value = it ? it.title : '';
     bodyInput.value = it ? it.body : '';
-    titleInput.disabled = !it;
+    titleInput.disabled = !it || Boolean(it.file);
     bodyInput.disabled = !it;
+    bodyInput.readOnly = Boolean(it && it.file); // Datei-Skripte nur ansehen – bearbeitet wird in der Datei
     renderScriptList();
     updateEditorMeta();
   }
 
   function onEdit() {
     if (!ed.id) return;
+    const cur = currentScript();
+    if (cur && cur.file) return;
     ed.dirty = true;
     updateEditorMeta();
     clearTimeout(ed.timer);
@@ -1276,7 +1287,7 @@
     scripts = sc;
     if (!ed.id || !sc.items.some((x) => x.id === ed.id)) {
       openScript(sc.activeId || (sc.items[0] && sc.items[0].id));
-    } else if (!ed.dirty && document.activeElement !== bodyInput && document.activeElement !== titleInput) {
+    } else if ((!ed.dirty && document.activeElement !== bodyInput && document.activeElement !== titleInput) || (currentScript() && currentScript().file)) {
       const it = currentScript();
       if (titleInput.value !== it.title) titleInput.value = it.title;
       if (bodyInput.value !== it.body) bodyInput.value = it.body;
@@ -1311,6 +1322,109 @@
       note(t('note.createFailed'));
     }
   });
+
+  // ---------- Import, Export, Einfügen mit Formatierung
+
+  const D = window.GlancelineDocx;
+  function fileExt(f) {
+    return (String(f).match(/\.(\w+)$/) || ['', ''])[1].toUpperCase();
+  }
+
+  async function fileToScript(file) {
+    const name = file.name.replace(/\.[^.]+$/, '');
+    if (/\.docx$/i.test(file.name)) return { title: name, body: await D.docxToScript(new Uint8Array(await file.arrayBuffer()), D.browserInflate) };
+    if (/\.(md|markdown|txt)$/i.test(file.name)) return { title: name, body: (await file.text()).replace(/^\uFEFF/, '') };
+    throw new Error('type');
+  }
+
+  async function importFiles(files) {
+    await saveScript();
+    let last = null;
+    let failed = 0;
+    for (const f of files) {
+      try {
+        const { title, body } = await fileToScript(f);
+        const r = await S.api('/api/scripts', { op: 'create', title, body });
+        if (!r.ok) throw new Error(r.error);
+        if (!scripts.items.some((x) => x.id === r.id)) scripts.items.push(r.item);
+        last = r.id;
+      } catch {
+        failed++;
+      }
+    }
+    if (last) openScript(last);
+    if (failed) note(t('scripts.importFailed', { n: failed }));
+    else if (last) note(t('scripts.imported', { n: files.length }));
+  }
+
+  $('#importScript').addEventListener('click', () => $('#importFile').click());
+  $('#importFile').addEventListener('change', (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length) importFiles(files);
+  });
+
+  // Dateien auf die Skripte-Seite ziehen
+  const scriptsPage = $('#page-scripts');
+  scriptsPage.addEventListener('dragover', (e) => {
+    if (![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    scriptsPage.classList.add('dropping');
+  });
+  scriptsPage.addEventListener('dragleave', (e) => {
+    if (!scriptsPage.contains(e.relatedTarget)) scriptsPage.classList.remove('dropping');
+  });
+  scriptsPage.addEventListener('drop', (e) => {
+    scriptsPage.classList.remove('dropping');
+    const files = [...e.dataTransfer.files].filter((f) => /\.(md|markdown|txt|docx)$/i.test(f.name));
+    if (!files.length) return;
+    e.preventDefault();
+    importFiles(files);
+  });
+
+  $('#exportScript').addEventListener('click', async () => {
+    await saveScript();
+    const it = currentScript();
+    if (!it) return;
+    const blob = new Blob([it.body], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(it.title || 'script').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'script'}.md`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+
+  $('#editLinked').addEventListener('click', () => {
+    if (ed.id) S.action('library:edit', { id: ed.id }).catch(() => {});
+  });
+
+  // Aus Word, Google Docs oder Webseiten einfügen: fett, kursiv, Markierungen und Überschriften bleiben erhalten
+  bodyInput.addEventListener('paste', (e) => {
+    if (bodyInput.readOnly) return;
+    const html = e.clipboardData && e.clipboardData.getData('text/html');
+    if (!html || !/<(b|strong|i|em|mark|h[1-6])[\s>]|font-weight|font-style|mso-highlight|background/i.test(html)) return;
+    let text;
+    try {
+      text = D.htmlToScript(html);
+    } catch {
+      return;
+    }
+    if (!text) return;
+    e.preventDefault();
+    bodyInput.setRangeText(text, bodyInput.selectionStart, bodyInput.selectionEnd, 'end');
+    onEdit();
+  });
+
+  function renderFolder() {
+    const f = live.folder || {};
+    const info = $('#folderInfo');
+    setText(info, f.error ? t(f.error) : f.folder ? t('library.info', { folder: f.folder, n: f.files }) : t('library.hint'));
+    info.classList.toggle('bad', Boolean(f.error));
+    $('#folderOpen').hidden = !f.folder;
+    $('#folderClear').hidden = !f.folder;
+  }
 
   $('#deleteScript').addEventListener('click', async () => {
     const b = $('#deleteScript');

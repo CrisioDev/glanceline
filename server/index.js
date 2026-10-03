@@ -9,6 +9,7 @@ const { systemFonts } = require('./fonts');
 const { TwitchChat } = require('./twitch');
 const { YouTubeChat } = require('./youtube');
 const { KickChat } = require('./kick');
+const { ScriptFolder } = require('./library');
 const { ObsClient } = require('./obs');
 const { PowerPointWatcher } = require('./powerpoint');
 const { VoiceEngine, VOICE_LANGUAGES } = require('./voice');
@@ -137,6 +138,7 @@ class Glanceline extends EventEmitter {
       twitch: {},
       youtube: {},
       kick: {},
+      folder: { folder: '', files: 0, error: '' },
       camera: { active: false, error: '', label: '', devices: [] },
       displays: [],
       prompter: { kind: 'none', display: null },
@@ -150,6 +152,7 @@ class Glanceline extends EventEmitter {
     this.twitch = new TwitchChat(() => this.settings);
     this.youtube = new YouTubeChat(() => this.settings);
     this.kick = new KickChat(() => this.settings);
+    this.folder = new ScriptFolder();
     this.obs = new ObsClient(() => this.settings);
     this.ppt = new PowerPointWatcher();
     this.voice = new VoiceEngine({ dataDir });
@@ -211,6 +214,8 @@ class Glanceline extends EventEmitter {
       }
       this.touch();
     });
+    this.folder.on('status', (st) => { this.live.folder = st; this.touch(); });
+    this.folder.on('files', (files) => this._syncFolder(files));
     this.ppt.on('update', (p) => this._ppt(p));
     this.ppt.on('log', (l) => l && console.warn('[ppt]', l));
     this.voice.on('status', (st) => { this.live.voice = { ...st, lang: this.voiceLang() }; this.touch(); });
@@ -231,6 +236,7 @@ class Glanceline extends EventEmitter {
     this.twitch.start();
     this.youtube.start();
     this.kick.start();
+    this.folder.watch(this.settings.library.folder);
     this.obs.start();
     this.ppt.start();
     this._syncVoice();
@@ -244,6 +250,7 @@ class Glanceline extends EventEmitter {
     this.twitch.stop();
     this.youtube.stop();
     this.kick.stop();
+    this.folder.stop();
     this.obs.stop();
     this.ppt.stop();
     this.voice.stop();
@@ -744,6 +751,22 @@ class Glanceline extends EventEmitter {
         break;
       }
 
+      case 'library:pick':
+        this.emit('pickFolder');
+        break;
+      case 'library:open':
+        if (s.library.folder) this.emit('openPath', s.library.folder);
+        break;
+      case 'library:clear':
+        this.patchSettings({ library: { folder: '' } });
+        break;
+      case 'library:edit': {
+        // nur Dateien, die wirklich aus dem verknüpften Ordner stammen
+        const it = this.store.scripts.items.find((x) => x.id === a.id);
+        if (it && it.file) this.emit('openPath', it.file);
+        break;
+      }
+
       case 'show:toggle':
         if (L.show.running) this._showPause();
         else this._showStart();
@@ -848,7 +871,7 @@ class Glanceline extends EventEmitter {
 
   patchSettings(patch) {
     if (!isObj(patch)) return;
-    const watched = ['clicker', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
+    const watched = ['clicker', 'library.folder', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
     const snap = (k) => JSON.stringify(getPath(this.settings, k));
     const before = Object.fromEntries(watched.map((k) => [k, snap(k)]));
 
@@ -881,6 +904,7 @@ class Glanceline extends EventEmitter {
       this.kick.reloadEmotes();
     }
     if (changed('obs')) this.obs.restart();
+    if (changed('library.folder')) this.folder.watch(this.settings.library.folder);
     if (changed('hotkeys') || changed('clicker')) this.emit('hotkeys');
     if (changed('display')) this.emit('display');
     if (changed('general.autostart')) this.emit('autostart');
@@ -909,6 +933,7 @@ class Glanceline extends EventEmitter {
       case 'save': {
         const it = find(b.id);
         if (!it) return { ok: false, error: 'script not found' };
+        if (it.file) return { ok: false, error: 'linked to a file' };
         if (typeof b.title === 'string') it.title = b.title;
         if (typeof b.body === 'string') it.body = b.body;
         it.updatedAt = Date.now();
@@ -916,6 +941,7 @@ class Glanceline extends EventEmitter {
         return { ok: true };
       }
       case 'delete': {
+        if (find(b.id) && find(b.id).file) return { ok: false, error: 'linked to a file' };
         sc.items = sc.items.filter((x) => x.id !== b.id);
         if (sc.activeId === b.id) {
           sc.activeId = sc.items.length ? sc.items[0].id : null;
@@ -937,6 +963,34 @@ class Glanceline extends EventEmitter {
       default:
         return { ok: false, error: 'unknown operation' };
     }
+  }
+
+  // Skripte aus dem verknüpften Ordner übernehmen (neu, geändert, gelöscht)
+  _syncFolder(files) {
+    const sc = this.store.scripts;
+    const byFile = new Map(files.map((f) => [f.file, f]));
+    let changed = false;
+    const kept = sc.items.filter((it) => !it.file || byFile.has(it.file));
+    if (kept.length !== sc.items.length) {
+      sc.items = kept;
+      changed = true;
+      if (!sc.items.some((x) => x.id === sc.activeId)) {
+        sc.activeId = sc.items.length ? sc.items[0].id : null;
+        this._resetScript();
+      }
+    }
+    for (const f of files) {
+      const it = sc.items.find((x) => x.file === f.file);
+      if (!it) {
+        sc.items.push({ id: newId(), title: f.title, body: f.body, file: f.file, updatedAt: f.mtime });
+        if (!sc.activeId) sc.activeId = sc.items[sc.items.length - 1].id;
+        changed = true;
+      } else if (it.body !== f.body || it.title !== f.title) {
+        Object.assign(it, { title: f.title, body: f.body, updatedAt: f.mtime });
+        changed = true;
+      }
+    }
+    if (changed) this._scriptsChanged();
   }
 
   _resetScript() {
