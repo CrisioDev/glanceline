@@ -52,6 +52,7 @@
               <button class="btn blackout-btn" id="passthroughBtn" data-action="passthrough" data-i18n-title="live.passthroughHint"><i data-icon="monitor"></i><span data-i18n="live.passthrough"></span></button>
               <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="camera.enabled"><span class="knob"></span></span><span data-i18n="live.cameraImage"></span></label>
               <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="display.mirror"><span class="knob"></span></span><span data-i18n="live.mirror"></span></label>
+              <label class="quick-profile" id="profileQuick" hidden><span data-i18n="profiles.label"></span><select id="profileSelect" class="select-compact"></select><em id="profileDirty"></em></label>
             </div>
           </div>
         </div>
@@ -250,6 +251,7 @@
             <span id="scriptStats"></span>
             <span id="saveState" class="save-state"></span>
             <span class="push"></span>
+            <label class="script-profile" id="scriptProfileRow" hidden><span data-i18n="profiles.label"></span><select id="scriptProfile" class="select-compact"></select></label>
             <button class="btn" id="exportScript" data-i18n-title="scripts.exportTitle"><i data-icon="download"></i><span data-i18n="scripts.export"></span></button>
             <button class="btn" id="deleteScript"><i data-icon="trash"></i><span></span></button>
             <button class="btn primary" id="activateScript"><i data-icon="check"></i><span></span></button>

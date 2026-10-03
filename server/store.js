@@ -36,6 +36,11 @@ const DEFAULT_HOTKEYS = Object.freeze({
   'script:reverse': '',
   'show:toggle': 'Ctrl+Alt+num0',
   'show:reset': '',
+  'profile:next': '',
+  'profile:1': '',
+  'profile:2': '',
+  'profile:3': '',
+  'profile:4': '',
 });
 
 const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
@@ -101,6 +106,8 @@ function defaultSettings() {
     timers: { show: false, minutes: 0, start: 'script', warn: 2 },
     library: { folder: '' }, // Skript-Ordner, der live synchron gehalten wird
     windowState: { virtual: null }, // Position des virtuellen Prompters
+    // Profile: benannte Sätze von Darstellungs-Einstellungen, optional automatisch je Modus
+    profiles: { list: [], active: '', byMode: {} },
     voice: { enabled: false, lang: 'auto', micLabel: '', dimRead: true },
     ppt: { autoSwitch: true, maxFontSize: 54, minFontSize: 24, showNext: true, showTimer: true },
     obs: { host: '127.0.0.1', port: 4455, password: '' },
@@ -142,12 +149,18 @@ const RANGES = {
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // Bringt gespeicherte Werte in Form: fehlende Schlüssel ergänzen, falsche Typen zurücksetzen.
-function conform(target, defaults) {
+// Listen aus Objekten statt Texten (werden gesondert geprüft, z. B. von sanitizeProfiles)
+const OBJECT_LISTS = new Set(['profiles.list']);
+
+function conform(target, defaults, prefix = '') {
   for (const [k, def] of Object.entries(defaults)) {
     const cur = target[k];
+    const p = prefix ? `${prefix}.${k}` : k;
     if (isObj(def)) {
       if (!isObj(cur)) target[k] = {};
-      conform(target[k], def);
+      conform(target[k], def, p);
+    } else if (Array.isArray(def) && OBJECT_LISTS.has(p)) {
+      target[k] = Array.isArray(cur) ? cur.filter(isObj) : def;
     } else if (Array.isArray(def)) {
       target[k] = Array.isArray(cur) ? cur.map((v) => String(v).trim()).filter(Boolean) : def;
     } else if (typeof cur !== typeof def || (typeof def === 'number' && !Number.isFinite(cur))) {
@@ -155,6 +168,44 @@ function conform(target, defaults) {
     }
   }
   return target;
+}
+
+// Was ein Profil speichert: alles zur Darstellung, nichts zu Verbindungen, Kanälen oder Hotkeys
+const PROFILE_KEYS = [
+  'display.fontFamily', 'display.textColor', 'display.accentColor', 'display.brightness', 'display.highContrast', 'display.statusBar',
+  'display.crosshair', 'display.crossX', 'display.crossY', 'display.crossSize', 'display.crossOpacity',
+  'camera.enabled', 'camera.dim', 'camera.plate', 'camera.textOpacity',
+  'chat.fontSize', 'chat.emoteScale', 'chat.maxMessages', 'chat.showBadges', 'chat.showEvents', 'chat.fadeAfter',
+  'script.fontSize', 'script.lineHeight', 'script.speed', 'script.guide', 'script.showGuide', 'script.countdown', 'script.margin', 'script.align',
+  'ppt.maxFontSize', 'ppt.minFontSize', 'ppt.showNext', 'ppt.showTimer',
+  'voice.enabled', 'voice.dimRead',
+  'timers.show', 'timers.minutes', 'timers.warn',
+];
+const getPath = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+function setPath(o, p, v) {
+  const keys = p.split('.');
+  const last = keys.pop();
+  const obj = keys.reduce((x, k) => (isObj(x[k]) ? x[k] : (x[k] = {})), o);
+  obj[last] = v;
+}
+
+function sanitizeProfiles(s) {
+  const defaults = defaultSettings();
+  const p = s.profiles;
+  const ids = new Set();
+  p.list = (Array.isArray(p.list) ? p.list : [])
+    .filter((x) => isObj(x) && typeof x.id === 'string' && x.id && !ids.has(x.id) && ids.add(x.id))
+    .slice(0, 30)
+    .map((x) => {
+      const values = {};
+      for (const k of PROFILE_KEYS) {
+        const v = getPath(x.values || {}, k);
+        if (v !== undefined && typeof v === typeof getPath(defaults, k)) setPath(values, k, v);
+      }
+      return { id: x.id, name: String(x.name || '').trim().slice(0, 40) || 'Profil', values };
+    });
+  if (!p.list.some((x) => x.id === p.active)) p.active = '';
+  for (const [mode, id] of Object.entries(p.byMode)) if (!MODES.includes(mode) || !p.list.some((x) => x.id === id)) delete p.byMode[mode];
 }
 
 function clampRanges(s) {
@@ -179,6 +230,7 @@ function clampRanges(s) {
   if (!['line', 'page'].includes(s.clicker.step)) s.clicker.step = 'line';
   if (!['manual', 'script', 'stream'].includes(s.timers.start)) s.timers.start = 'script';
   for (const [scene, mode] of Object.entries(s.obsAuto.sceneModes)) if (!MODES.includes(mode)) delete s.obsAuto.sceneModes[scene];
+  sanitizeProfiles(s);
 }
 
 const SAMPLE_SCRIPTS = {
@@ -309,4 +361,4 @@ class Store {
   }
 }
 
-module.exports = { Store, DEFAULT_HOTKEYS, MODES, newId, newToken };
+module.exports = { Store, DEFAULT_HOTKEYS, MODES, PROFILE_KEYS, newId, newToken };
