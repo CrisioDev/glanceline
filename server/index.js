@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { Store, DEFAULT_HOTKEYS, newId, newToken } = require('./store');
+const { systemFonts } = require('./fonts');
 const { TwitchChat } = require('./twitch');
 const { ObsClient } = require('./obs');
 const { PowerPointWatcher } = require('./powerpoint');
@@ -122,7 +123,11 @@ class Glanceline extends EventEmitter {
       mode: MODES.includes(startMode) ? startMode : 'chat',
       prevMode: null,
       blackout: false,
-      script: { playing: false, pos: 0, max: 0 },
+      passthrough: false, // Prompter-Fenster ausgeblendet, Display frei für andere Programme
+      script: { playing: false, pos: 0, max: 0, dir: 1, instant: false, restoreTo: null },
+      chat: { paused: false, offset: 0 },
+      director: null, // { id, text, until } – Regie-Nachricht auf dem Prompter
+      insert: null, // laufender Einschub: { slot, title, prev }
       ppt: { running: false, mode: 'none', slide: 0, total: 0, title: '', notes: '', nextTitle: '', file: '', paused: false, timer: { running: false, startedAt: 0, acc: 0 } },
       obs: {},
       twitch: {},
@@ -168,17 +173,30 @@ class Glanceline extends EventEmitter {
     return `http://127.0.0.1:${this.port}`;
   }
 
-  async start() {
+  // Ereignisse der Dienste mit dem Live-Zustand verbinden (eigene Methode, damit Tests sie ohne Netzwerk nutzen können)
+  _wire() {
     this.twitch.on('status', (st) => { this.live.twitch = st; this.touch(); });
     this.twitch.on('message', (m) => this._chat(m));
     this.twitch.on('clear', (c) => this._chatClear(c));
-    this.obs.on('status', (st) => { this.live.obs = st; this.touch(); });
+    this.obs.on('status', (st) => {
+      const prevScene = this.live.obs.scene;
+      this.live.obs = st;
+      // Szenenwechsel in OBS schaltet den passenden Modus
+      if (st.connected && st.scene && st.scene !== prevScene) {
+        const mode = this.settings.obsAuto.sceneModes[st.scene];
+        if (mode && mode !== this.live.mode) this._setMode(mode);
+      }
+      this.touch();
+    });
     this.ppt.on('update', (p) => this._ppt(p));
     this.ppt.on('log', (l) => l && console.warn('[ppt]', l));
     this.voice.on('status', (st) => { this.live.voice = { ...st, lang: this.voiceLang() }; this.touch(); });
     this.voice.on('downloaded', () => this._syncVoice());
     this.live.voice = { ...this.voice.status, lang: this.voiceLang() };
+  }
 
+  async start() {
+    this._wire();
     this.server = http.createServer((req, res) => {
       this._handle(req, res).catch((err) => {
         if (!res.headersSent) sendJson(res, { ok: false, error: err.message }, 500);
@@ -311,6 +329,7 @@ class Glanceline extends EventEmitter {
       if (p === '/events') return this._sse(req, res, url);
       if (p === '/api/state') return sendJson(res, this._snapshot());
       if (p === '/api/obs-frame') return this._obsFrame(res, url);
+      if (p === '/api/fonts') return sendJson(res, { fonts: await systemFonts() });
       if (p === '/api/obs-sources') {
         try {
           return sendJson(res, { ok: true, ...(await this.obs.sources()) });
@@ -506,6 +525,7 @@ class Glanceline extends EventEmitter {
       paused: Boolean(p.paused),
       timer,
     };
+    if (p.mode === 'show' && p.slide && p.slide !== prev.slide) this._chapter(`${p.slide}: ${cleanText(p.title) || 'Slide'}`);
     if (isShow && !wasShow) {
       Object.assign(timer, { running: true, startedAt: Date.now(), acc: 0 });
       if (this.settings.ppt.autoSwitch && this.live.mode !== 'ppt') {
@@ -527,9 +547,57 @@ class Glanceline extends EventEmitter {
   _setMode(mode) {
     if (!MODES.includes(mode)) return;
     if (this.live.mode === 'script' && mode !== 'script') this.live.script.playing = false;
+    const changed = this.live.mode !== mode;
     this.live.mode = mode;
     this.live.prevMode = null;
     this.live.blackout = false;
+    this._setPassthrough(false); // Moduswechsel holt den Prompter zurück
+    if (changed) this.emit('mode', mode);
+  }
+
+  _setPassthrough(on) {
+    if (this.live.passthrough === on) return;
+    this.live.passthrough = on;
+    this.emit('passthrough', on);
+  }
+
+  // Kapitelmarke in der laufenden OBS-Aufnahme (OBS 30.2+, Hybrid-MP4)
+  _chapter(name) {
+    if (!this.settings.obsAuto.chapters || !this.live.obs.recording) return;
+    this.obs.request('CreateRecordChapter', { chapterName: String(name).slice(0, 100) }).catch(() => {});
+  }
+
+  // Einschub: kurzes Skript dazwischenschieben, danach zurück an die alte Stelle
+  _startInsert(slot) {
+    const L = this.live;
+    const sc = this.store.scripts;
+    const id = this.settings.inserts[slot];
+    const item = sc.items.find((x) => x.id === id);
+    if (!item) return { ok: false, error: 'no insert script for this slot' };
+    if (L.insert && L.insert.slot === slot) return this._endInsert();
+    const prev = L.insert ? L.insert.prev : { mode: L.mode, scriptId: sc.activeId, pos: L.script.pos, playing: L.script.playing };
+    L.insert = { slot, title: item.title, prev };
+    sc.activeId = id;
+    this._scriptsChanged();
+    this._setMode('script');
+    Object.assign(L.script, { playing: true, pos: 0, instant: true, dir: 1 });
+    this.voice.seek(0);
+    this.touch();
+    return { ok: true };
+  }
+
+  _endInsert() {
+    const L = this.live;
+    if (!L.insert) return { ok: true };
+    const { prev } = L.insert;
+    L.insert = null;
+    const sc = this.store.scripts;
+    if (prev.scriptId && sc.items.some((x) => x.id === prev.scriptId)) sc.activeId = prev.scriptId;
+    this._scriptsChanged();
+    Object.assign(L.script, { playing: false, instant: false, restoreTo: { id: sc.activeId, pos: prev.pos, token: Date.now() } });
+    this._setMode(prev.mode);
+    this.touch();
+    return { ok: true };
   }
 
   action(a = {}) {
@@ -556,6 +624,9 @@ class Glanceline extends EventEmitter {
 
       case 'script:toggle':
         return this.action({ type: L.script.playing ? 'script:pause' : 'script:play' });
+      case 'script:reverse':
+        L.script.dir = L.script.dir === -1 ? 1 : -1;
+        break;
       case 'script:play':
         if (L.script.max > 0 && L.script.pos >= L.script.max - 2) {
           L.script.pos = 0;
@@ -563,6 +634,7 @@ class Glanceline extends EventEmitter {
         }
         if (L.mode !== 'script') this._setMode('script');
         L.script.playing = true;
+        if (s.obsAuto.recordWithScript && L.obs.connected && !L.obs.recording) this.obs.request('StartRecord').catch(() => {});
         break;
       case 'script:pause':
         L.script.playing = false;
@@ -597,8 +669,13 @@ class Glanceline extends EventEmitter {
       case 'view:forward': {
         const dir = type === 'view:back' ? -1 : 1;
         const target = a.target || L.mode;
-        if (target === 'script') this._cmd({ cmd: 'nudge', dir });
+        if (target === 'script') this._cmd({ cmd: 'nudge', dir, amount: a.amount === 'line' ? 'line' : 'page' });
         else if (target === 'ppt') this._cmd({ cmd: 'pptScroll', dir });
+        else if (target === 'chat') {
+          // Im Chat zurückspulen (pausiert automatisch); ganz vorne angekommen läuft er live weiter
+          L.chat.offset = clamp(L.chat.offset - dir * 3, 0, 150);
+          L.chat.paused = L.chat.offset > 0;
+        }
         break;
       }
       case 'font:bigger':
@@ -621,6 +698,30 @@ class Glanceline extends EventEmitter {
         break;
       }
 
+      case 'chat:pause':
+        L.chat.paused = !L.chat.paused;
+        if (!L.chat.paused) L.chat.offset = 0;
+        break;
+      case 'passthrough':
+        this._setPassthrough(typeof a.value === 'boolean' ? a.value : !L.passthrough);
+        break;
+      case 'director:send': {
+        const text = String(a.text || '').trim().slice(0, 200);
+        if (!text) return { ok: false, error: 'empty message' };
+        const secs = clamp(Number(a.seconds) || s.director.seconds, 3, 300);
+        L.director = { id: newId(), text, until: Date.now() + secs * 1000 };
+        break;
+      }
+      case 'director:clear':
+        L.director = null;
+        break;
+      case 'insert:1':
+      case 'insert:2':
+      case 'insert:3':
+      case 'insert:4':
+        return this._startInsert(type.slice(7));
+      case 'insert:return':
+        return this._endInsert();
       case 'chat:clear':
         this._chatClear({ all: true });
         break;
@@ -677,10 +778,15 @@ class Glanceline extends EventEmitter {
 
   patchSettings(patch) {
     if (!isObj(patch)) return;
-    const watched = ['chat.channel', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
+    const watched = ['clicker', 'chat.channel', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
     const snap = (k) => JSON.stringify(getPath(this.settings, k));
     const before = Object.fromEntries(watched.map((k) => [k, snap(k)]));
 
+    // Szenen-Zuordnung ersetzen statt mischen (Szenennamen sind frei wählbar)
+    if (isObj(patch.obsAuto) && isObj(patch.obsAuto.sceneModes)) {
+      this.settings.obsAuto.sceneModes = { ...patch.obsAuto.sceneModes };
+      delete patch.obsAuto.sceneModes;
+    }
     deepAssign(this.settings, patch);
     this.store.sanitize();
     this.store.save('settings');
@@ -694,7 +800,7 @@ class Glanceline extends EventEmitter {
       this.twitch.reloadEmotes();
     }
     if (changed('obs')) this.obs.restart();
-    if (changed('hotkeys')) this.emit('hotkeys');
+    if (changed('hotkeys') || changed('clicker')) this.emit('hotkeys');
     if (changed('display')) this.emit('display');
     if (changed('general.autostart')) this.emit('autostart');
     if (changed('general.language')) this.emit('language');
@@ -768,7 +874,13 @@ class Glanceline extends EventEmitter {
     if (b.kind === 'script') {
       if (Number.isFinite(b.pos)) L.script.pos = b.pos;
       if (Number.isFinite(b.max)) L.script.max = b.max;
-      if (b.ended) L.script.playing = false;
+      if (b.ended) {
+        L.script.playing = false;
+        if (L.insert) this._endInsert(); // Einschub fertig → zurück an die alte Stelle
+      }
+    } else if (b.kind === 'section') {
+      if (L.script.playing && b.title) this._chapter(String(b.title));
+      return;
     } else if (b.kind === 'voice-seek') {
       if (Number.isFinite(b.pos)) this.voice.seek(b.pos);
       return;

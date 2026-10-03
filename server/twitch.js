@@ -374,6 +374,9 @@ class TwitchChat extends EventEmitter {
       user,
       action,
       first: t['first-msg'] === '1',
+      returning: t['returning-chatter'] === '1',
+      reward: Boolean(t['custom-reward-id']), // Kanalpunkte-Einlösung mit Text
+      shared: Boolean(t['source-room-id'] && t['room-id'] && t['source-room-id'] !== t['room-id']), // aus einem Shared Chat
       highlight: this._isHighlight(text) || t['msg-id'] === 'highlighted-message',
       tokens: this.tokenize(text, t.emotes),
     };

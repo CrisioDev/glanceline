@@ -19,8 +19,8 @@ You switch between them with one click or a global hotkey. You can also place yo
 
 | Mode | What you see on the prompter |
 |---|---|
-| **Chat** | Twitch chat, read anonymously (no login): <br>• Emotes from Twitch, **7TV**, BTTV and FFZ, including zero-width emotes <br>• **Live 7TV updates**: added or removed emotes show up instantly <br>• Highlighted subs, gift subs, raids, bits and @mentions <br>• Bot and !command filters |
-| **Script** | Teleprompter that can **follow your voice** – offline, any CPU, English/German/French/Spanish. It waits while you ad-lib and catches up when you skip ahead. Also includes: <br>• a reading line and a countdown <br>• speed control <br>• Markdown sections you can jump between by hotkey <br>• stage-direction tags like `[Pause]` |
+| **Chat** | Twitch chat, read anonymously (no login): <br>• Emotes from Twitch, **7TV**, BTTV and FFZ, including zero-width emotes <br>• **Live 7TV updates**: added or removed emotes show up instantly <br>• Highlighted subs, gift subs, raids, bits and @mentions <br>• Channel-point messages, first-time and returning chatters, Shared Chat marked <br>• **Pause and rewind** the chat by hotkey <br>• Bot and !command filters |
+| **Script** | Teleprompter that can **follow your voice** – offline, any CPU, English/German/French/Spanish. It waits while you ad-lib and catches up when you skip ahead. Also includes: <br>• a reading line and a countdown <br>• speed control <br>• Markdown sections you can jump between by hotkey <br>• stage-direction tags like `[Pause]` <br>• **Clicker & foot pedal** support (PageUp/PageDown or any key you choose) <br>• **Quick inserts**: a hotkey drops in a short script (raid thank-you, ad read), then jumps back to where you were <br>• right-to-left scripts and reverse scrolling |
 | **OBS** | LIVE/REC timers, current scene, FPS, CPU, bitrate and dropped frames (via obs-websocket) |
 | **PowerPoint** | Speaker notes of the **current slide**, synced automatically, presenter clickers included. Text auto-fits, with next-slide title and talk timer. Switches on when the slideshow starts. |
 | **Camera** | Your camera image as a confidence monitor |
@@ -30,6 +30,10 @@ Also included:
 - **Camera image behind the text.** Text stays readable with adjustable darkening and a backdrop. The source is a webcam or any OBS source.
 - **Status bar in every mode** with LIVE/REC indicator and clock. Raids and subs pop up even while you read a script.
 - **Control from anywhere.** Desktop panel with a live preview, your phone (scan a QR code, add to home screen), an OBS custom dock, or **global hotkeys** (Stream Deck: use the “Hotkey” action).
+- **Eye-line aids:** lens crosshair, narrow text column, centered text. Any installed font, OpenDyslexic, high-contrast mode and a software dimmer against reflections.
+- **OBS automation:** switching OBS scenes switches the prompter mode (e.g. *Just Chatting* → chat). Optionally start a recording with the script and add chapter markers for every section and slide.
+- **Director messages:** send a short note from the panel or a phone (“2 minutes left”) that flashes on the prompter.
+- **Pass-through:** hide Glanceline on the prompter to use other apps there (Zoom, browser).
 - **Prompter detection** by name or resolution, Windows display scaling handled, optional horizontal mirroring.
 - **English & German** UI, system tray, start with Windows. Runs fully offline except chat and emotes. **No telemetry.**
 
@@ -74,6 +78,11 @@ All hotkeys work globally and can be changed under *Settings → Keyboard shortc
 | Ctrl+Alt+Num 1 | Script back to start |
 | Ctrl+Alt+Num + / Num − | Font bigger / smaller |
 | Ctrl+Alt+Num 3 | Voice tracking on/off |
+| Ctrl+Alt+F9 | Pass-through on/off |
+| Ctrl+Alt+F10 | Pause/resume chat |
+| Ctrl+Alt+F11 / F12 | Insert 1 / 2 |
+
+Clicker keys (PageDown / PageUp / B) are off by default. Turn them on under *Settings → Clicker & foot pedal*. They only apply in script mode, so PowerPoint keeps its keys.
 
 The defaults avoid Ctrl+Alt+letter on purpose. On many European keyboards that combination is AltGr (@, €, {, [ …).
 

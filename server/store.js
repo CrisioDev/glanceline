@@ -26,12 +26,23 @@ const DEFAULT_HOTKEYS = Object.freeze({
   'font:bigger': 'Ctrl+Alt+numadd',
   'font:smaller': 'Ctrl+Alt+numsub',
   'voice:toggle': 'Ctrl+Alt+num3',
+  'passthrough': 'Ctrl+Alt+F9',
+  'chat:pause': 'Ctrl+Alt+F10',
+  'insert:1': 'Ctrl+Alt+F11',
+  'insert:2': 'Ctrl+Alt+F12',
+  'insert:3': '',
+  'insert:4': '',
+  'director:clear': '',
+  'script:reverse': '',
 });
+
+const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
 
 const newToken = () => crypto.randomBytes(12).toString('base64url');
 const newId = () => crypto.randomBytes(6).toString('hex');
 
 function defaultSettings() {
+  const de = resolveLang('auto') === 'de';
   return {
     general: { language: 'auto', setupDone: false, startMode: 'chat', autostart: false, lan: false, port: 4890, token: newToken() },
     display: {
@@ -42,6 +53,13 @@ function defaultSettings() {
       fontFamily: 'Atkinson Hyperlegible',
       textColor: '#f4ede4',
       accentColor: '#e8a33d',
+      brightness: 1, // Software-Dimmer gegen Spiegelungen im Glas
+      highContrast: false,
+      crosshair: false, // Markierung auf Höhe der Kameralinse
+      crossX: 0.5,
+      crossY: 0.5,
+      crossSize: 56,
+      crossOpacity: 0.55,
     },
     camera: {
       enabled: false,
@@ -69,10 +87,15 @@ function defaultSettings() {
       highlightWords: [],
       fadeAfter: 0,
     },
-    script: { fontSize: 56, lineHeight: 1.4, speed: 70, guide: 0.3, showGuide: true, countdown: 3 },
+    script: { fontSize: 56, lineHeight: 1.4, speed: 70, guide: 0.3, showGuide: true, countdown: 3, margin: 0.07, align: 'left' },
+    // Clicker & Fußpedal: einfache Tasten steuern den Prompter, solange der Skript-Modus aktiv ist
+    clicker: { enabled: false, forward: 'PageDown', back: 'PageUp', toggle: 'B', step: 'line' },
+    director: { seconds: 10, presets: de ? ['Noch 2 Minuten', 'Langsamer', 'Lauter bitte', 'Werbepause!'] : ['2 minutes left', 'Slow down', 'Speak up', 'Ad break!'] },
+    inserts: { 1: '', 2: '', 3: '', 4: '' }, // Skript-IDs für Einschübe per Hotkey
     voice: { enabled: false, lang: 'auto', micLabel: '', dimRead: true },
     ppt: { autoSwitch: true, maxFontSize: 54, minFontSize: 24, showNext: true, showTimer: true },
     obs: { host: '127.0.0.1', port: 4455, password: '' },
+    obsAuto: { sceneModes: {}, recordWithScript: false, chapters: false },
     hotkeys: { ...DEFAULT_HOTKEYS },
   };
 }
@@ -95,6 +118,13 @@ const RANGES = {
   'ppt.maxFontSize': [16, 140, true],
   'ppt.minFontSize': [10, 100, true],
   'obs.port': [1, 65535, true],
+  'display.brightness': [0.2, 1],
+  'display.crossX': [0, 1],
+  'display.crossY': [0, 1],
+  'display.crossSize': [16, 300, true],
+  'display.crossOpacity': [0.1, 1],
+  'script.margin': [0, 0.45],
+  'director.seconds': [3, 300, true],
 };
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -130,6 +160,9 @@ function clampRanges(s) {
   if (!s.general.token) s.general.token = newToken();
   if (s.general.language !== 'auto' && !LANGUAGES.includes(s.general.language)) s.general.language = 'auto';
   if (!['auto', 'de', 'en', 'fr', 'es'].includes(s.voice.lang)) s.voice.lang = 'auto';
+  if (!['left', 'center'].includes(s.script.align)) s.script.align = 'left';
+  if (!['line', 'page'].includes(s.clicker.step)) s.clicker.step = 'line';
+  for (const [scene, mode] of Object.entries(s.obsAuto.sceneModes)) if (!MODES.includes(mode)) delete s.obsAuto.sceneModes[scene];
 }
 
 const SAMPLE_SCRIPTS = {
@@ -260,4 +293,4 @@ class Store {
   }
 }
 
-module.exports = { Store, DEFAULT_HOTKEYS, newId, newToken };
+module.exports = { Store, DEFAULT_HOTKEYS, MODES, newId, newToken };

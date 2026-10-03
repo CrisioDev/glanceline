@@ -41,23 +41,26 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 - [x] Data in `%APPDATA%\Glanceline`, migration of old data
 - [x] Bundled fonts (offline, no Google requests)
 - [x] Installer + portable build, GitHub Actions release workflow
-- [ ] License, final name, app ID, public repo
+- [x] License (MIT), final name, app ID
+- [ ] Public repo (private for now)
 - [ ] README screenshots / GIF
 - [ ] Code signing (e.g. SignPath Foundation for OSS) — avoids the SmartScreen warning
 - [ ] Auto-update via GitHub Releases (`electron-updater`)
 
 ## Phase 1 — Quick wins against real pain points (v0.3)
 
+✅ **Done in Oct 2026**, except hold-to-scroll from 1.1 (moved to Phase 2).
+
 | # | Feature | Why (evidence) | Effort |
 |---|---|---|---|
-| 1.1 | **Clicker & pedal mode** — while active, plain keys (PgUp/PgDn, arrows, Space, B) control the prompter, so cheap USB/Bluetooth clickers and foot pedals work. Also: hold-to-scroll, small line steps, reverse speed, jump to top. | "Even cheap Chinese prompters come with a remote"; about 77 threads ask for remote/pedal/phone, about 22 for precise navigation on retakes | S |
-| 1.2 | **Pass-through mode** — hide Glanceline on the prompter so other apps (Zoom, browser) can be used and clicked; software dimmer against glare | about 13 threads on clicks being swallowed; brightness floor of 30 % causes reflections | S |
-| 1.3 | **Eye-line aids** — lens crosshair (position, size, opacity) and adjustable side margins for a narrow column (hides eye movement); center alignment | Crosshair re-added by Elgato after backlash; "please allow more than 30 % margin" | S |
-| 1.4 | **Fonts & accessibility** — any installed system font, bundled OpenDyslexic, right-to-left scripts, high-contrast mode without fade | about 29 threads on fonts/accessibility, about 11 on RTL (Arabic input hangs Camera Hub) | S |
-| 1.5 | **Chat details** — pause/rewind chat by hotkey; channel-point messages, first-time and returning chatters marked; badge for Shared Chat source | "the ability to rewind chat (would buy a foot pedal for this)"; "channel point redemptions … won't show at all" | S |
-| 1.6 | **Director messages** — send a short message from panel or phone that flashes on the prompter ("2 minutes left", "check the mic") | Director/"message to stage" features in Textream, Stagetimer, Ontime | S |
-| 1.7 | **OBS automation** — switch Glanceline's mode when the OBS scene changes (e.g. *Just Chatting* → chat, *Starting soon* → script); optionally start recording with the script and add chapter markers per section/slide | Streamers juggle scenes and prompter separately; obs-websocket offers everything needed | S |
-| 1.8 | **Quick-insert scripts** — a hotkey shows a short script (raid thank-you, ad read, sponsor), then returns to the previous mode and position | Asked for on r/obs; no tool does it | S |
+| 1.1 | ✅ **Clicker & pedal mode** — while active, plain keys (PgUp/PgDn, arrows, Space, B) control the prompter, so cheap USB/Bluetooth clickers and foot pedals work. Also: hold-to-scroll, small line steps, reverse speed, jump to top. | "Even cheap Chinese prompters come with a remote"; about 77 threads ask for remote/pedal/phone, about 22 for precise navigation on retakes | S |
+| 1.2 | ✅ **Pass-through mode** — hide Glanceline on the prompter so other apps (Zoom, browser) can be used and clicked; software dimmer against glare | about 13 threads on clicks being swallowed; brightness floor of 30 % causes reflections | S |
+| 1.3 | ✅ **Eye-line aids** — lens crosshair (position, size, opacity) and adjustable side margins for a narrow column (hides eye movement); center alignment | Crosshair re-added by Elgato after backlash; "please allow more than 30 % margin" | S |
+| 1.4 | ✅ **Fonts & accessibility** — any installed system font, bundled OpenDyslexic, right-to-left scripts, high-contrast mode without fade | about 29 threads on fonts/accessibility, about 11 on RTL (Arabic input hangs Camera Hub) | S |
+| 1.5 | ✅ **Chat details** — pause/rewind chat by hotkey; channel-point messages, first-time and returning chatters marked; badge for Shared Chat source | "the ability to rewind chat (would buy a foot pedal for this)"; "channel point redemptions … won't show at all" | S |
+| 1.6 | ✅ **Director messages** — send a short message from panel or phone that flashes on the prompter ("2 minutes left", "check the mic") | Director/"message to stage" features in Textream, Stagetimer, Ontime | S |
+| 1.7 | ✅ **OBS automation** — switch Glanceline's mode when the OBS scene changes (e.g. *Just Chatting* → chat, *Starting soon* → script); optionally start recording with the script and add chapter markers per section/slide | Streamers juggle scenes and prompter separately; obs-websocket offers everything needed | S |
+| 1.8 | ✅ **Quick-insert scripts** — a hotkey shows a short script (raid thank-you, ad read, sponsor), then returns to the previous mode and position | Asked for on r/obs; no tool does it | S |
 
 ## Phase 2 — Reach & integrations (v0.4)
 
@@ -70,6 +73,7 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 | 2.5 | **Twitch EventSub (optional login)** — follows, channel points, hype trains, polls | Needs OAuth (device-code flow); anonymous chat stays the default | M |
 | 2.6 | **Run-of-show timers** — target time per section with ahead/behind display, show countdown in a corner, reset by hotkey | QPrompt #70; Elgato threads ask for a show countdown | M |
 | 2.7 | **Profiles** — per-script or per-mode settings, quick switching | "settings are universal across modes … no profile functionality" | M |
+| 2.8 | **Hold-to-scroll** for clickers and pedals (scroll while the key is held) | Left over from 1.1; needs a low-level keyboard hook, because global shortcuts only report key presses | S |
 
 ## Phase 3 — Big bets (v0.5+)
 

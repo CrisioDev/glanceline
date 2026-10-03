@@ -49,6 +49,7 @@
             </div>
             <div class="quick">
               <button class="btn blackout-btn" id="blackoutBtn" data-action="blackout"><i data-icon="eye-off"></i><span data-i18n="live.blackout"></span></button>
+              <button class="btn blackout-btn" id="passthroughBtn" data-action="passthrough" data-i18n-title="live.passthroughHint"><i data-icon="monitor"></i><span data-i18n="live.passthrough"></span></button>
               <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="camera.enabled"><span class="knob"></span></span><span data-i18n="live.cameraImage"></span></label>
               <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="display.mirror"><span class="knob"></span></span><span data-i18n="live.mirror"></span></label>
             </div>
@@ -96,6 +97,7 @@
               <button class="btn icon sm" data-action="font:bigger" data-target="script" data-i18n-title="common.bigger"><i data-icon="plus"></i></button>
               <button class="link push" data-goto="scripts"><i data-icon="edit"></i><span data-i18n="script.edit"></span></button>
             </div>
+            <div class="insert-row" id="insertRow"></div>
             <h3 class="sub" data-i18n="script.sections"></h3>
             <ol class="sections" id="sectionList" data-i18n-attr="data-empty:script.sectionsEmpty"></ol>
           </div>
@@ -118,6 +120,12 @@
               <button class="btn" data-action="emotes:reload"><i data-icon="refresh"></i><span data-i18n="chat.reloadEmotes"></span></button>
               <button class="btn" data-action="chat:clear"><i data-icon="trash"></i><span data-i18n="chat.clear"></span></button>
               <button class="btn" data-action="twitch:reconnect"><i data-icon="plug"></i><span data-i18n="common.reconnect"></span></button>
+            </div>
+            <div class="btn-row">
+              <button class="btn" data-action="chat:pause" id="chatPauseBtn"><i data-icon="pause"></i><span></span></button>
+              <button class="btn icon" data-action="view:back" data-target="chat" data-i18n-title="chat.rewind"><i data-icon="chev-up"></i></button>
+              <button class="btn icon" data-action="view:forward" data-target="chat" data-i18n-title="chat.forward"><i data-icon="chev-down"></i></button>
+              <span class="hint" id="chatPauseState"></span>
             </div>
             <p class="hint warn" id="emoteErrors"></p>
           </div>
@@ -183,6 +191,16 @@
           </div>
 
           <!-- Verbindungen -->
+          <div class="card director-card">
+            <h3 class="sub first" data-i18n="director.title"></h3>
+            <div class="director-row">
+              <input type="text" id="directorText" maxlength="200" autocomplete="off" data-i18n-placeholder="director.placeholder">
+              <button class="btn primary" id="directorSend"><i data-icon="send"></i><span data-i18n="director.send"></span></button>
+            </div>
+            <div class="btn-row" id="directorPresets"></div>
+            <div class="director-state" id="directorState"></div>
+          </div>
+
           <div class="card conn-card">
             <h3 class="sub first" data-i18n="conn.title"></h3>
             <ul class="conn-list" id="connList"></ul>

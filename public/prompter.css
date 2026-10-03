@@ -14,7 +14,15 @@
   --plate: 0.35;
   --text-opacity: 1;
   --status-h: 40px;
+  --margin: 0.07;
+  --align: start;
+  --cx: 0.5;
+  --cy: 0.5;
+  --cs: 56px;
+  --co: 0.55;
+  --dimmer: 0;
 }
+html.hc { --text: #ffffff; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -176,6 +184,9 @@ html.cam-on .msg { background: rgba(0, 0, 0, var(--plate)); text-shadow: 0 1px 3
 .msg .sep { color: var(--text-dim); }
 .msg.action .text { font-style: italic; }
 .msg .mention { font-weight: 700; color: var(--text); }
+.chip.reward { background: #9147ff; color: #fff; }
+.chip.back { background: rgba(244, 237, 228, .85); }
+.chip.shared { background: #26c6da; }
 .msg .mention.me { color: #1a1209; background: var(--accent); border-radius: .25em; padding: 0 .2em; }
 
 .msg.hl { background: rgba(232, 163, 61, .16); box-shadow: inset 4px 0 0 var(--accent); }
@@ -265,8 +276,9 @@ html.cam-on #v-script::before {
 }
 #scriptText {
   position: relative;
-  padding-left: 7%;
-  padding-right: 7%;
+  padding-left: calc(var(--margin) * 100%);
+  padding-right: calc(var(--margin) * 100%);
+  text-align: var(--align);
   font-size: var(--fs-script);
   line-height: var(--lh-script);
   font-weight: 700;
@@ -276,6 +288,9 @@ html.cam-on #scriptText { text-shadow: 0 2px 8px rgba(0, 0, 0, .95); }
 #scriptText p { margin-bottom: .7em; }
 #scriptText .w { transition: opacity .35s ease; }
 #scriptText .w.read { opacity: .32; } /* bei Sprachsteuerung bereits Gesprochenes */
+html.hc #scriptText .w.read { opacity: .55; }
+html.hc #scriptViewport { -webkit-mask-image: none; mask-image: none; }
+html.hc #scriptText, html.hc #pptNotes, html.hc .msg { text-shadow: none; }
 #scriptText h1, #scriptText h2, #scriptText h3 {
   margin: .5em 0 .35em;
   font-size: .62em;
@@ -364,7 +379,7 @@ html.cam-on .obs-wrap { padding: 22px 40px; border-radius: 22px; background: rgb
 .obs-stats { font-size: 21px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
 /* ---------- PowerPoint ---------- */
-#v-ppt { display: flex; flex-direction: column; padding: 12px 30px 10px; }
+#v-ppt { display: flex; flex-direction: column; padding: 12px max(30px, calc(var(--margin) * 100%)) 10px; }
 html.cam-on #v-ppt { background: rgba(0, 0, 0, var(--plate)); }
 #pptBox { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 #v-ppt::after {
@@ -386,7 +401,7 @@ html.cam-on #v-ppt { background: rgba(0, 0, 0, var(--plate)); }
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
           mask-image: linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
 }
-#pptNotes { font-weight: 700; line-height: 1.32; overflow-wrap: anywhere; }
+#pptNotes { font-weight: 700; line-height: 1.32; overflow-wrap: anywhere; text-align: var(--align); }
 html.cam-on #pptNotes { text-shadow: 0 2px 8px rgba(0, 0, 0, .95); }
 #pptNotes .nl.gap { height: .5em; }
 #pptNotes strong { color: #fff; font-weight: 800; }
@@ -422,6 +437,62 @@ html.cam-on #pptNotes { text-shadow: 0 2px 8px rgba(0, 0, 0, .95); }
 .ppt-badge.show { display: block; }
 
 /* ---------- Overlays ---------- */
+#crosshair {
+  position: absolute;
+  left: calc(var(--cx) * 100%);
+  top: calc(var(--cy) * 100%);
+  z-index: 30;
+  display: none;
+  width: var(--cs);
+  height: var(--cs);
+  transform: translate(-50%, -50%);
+  opacity: var(--co);
+  pointer-events: none;
+}
+html.crosshair #crosshair { display: block; }
+#crosshair svg { width: 100%; height: 100%; fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+#crosshair circle:nth-child(2) { fill: var(--accent); stroke: none; }
+
+#director {
+  position: absolute;
+  top: calc(var(--status-h) + 14px);
+  left: 50%;
+  z-index: 40;
+  display: none;
+  max-width: 88%;
+  transform: translateX(-50%);
+  padding: 14px 26px;
+  border-radius: 16px;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  color: #1a1209;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, .6), 0 14px 40px rgba(0, 0, 0, .7);
+  animation: directorIn .3s cubic-bezier(.2, .9, .3, 1.3);
+}
+#director.show { display: block; }
+html.no-status #director { top: 14px; }
+@keyframes directorIn { from { opacity: 0; transform: translate(-50%, -16px) scale(.96); } }
+
+#chatBadge {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 5;
+  display: none;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a1209;
+  background: var(--accent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .6);
+}
+#chatBadge:not(:empty) { display: block; }
+
+#dimmer { position: absolute; inset: 0; z-index: 45; background: #000; opacity: var(--dimmer); pointer-events: none; }
 #toasts {
   position: absolute;
   top: calc(var(--status-h) + 12px);

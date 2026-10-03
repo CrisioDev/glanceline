@@ -15,7 +15,7 @@ for (const f of ['public/panel.html', 'public/prompter.html']) {
   for (const m of s.matchAll(/data-i18n(?:-title|-placeholder|-aria)?="([^"]+)"/g)) add(m[1], f);
   for (const m of s.matchAll(/data-i18n-attr="([^"]+)"/g)) for (const p of m[1].split(';')) add(p.split(':')[1], f);
 }
-const KEY = /^[a-z]+\.[\w.:-]+$/;
+const KEY = /^[a-z][a-zA-Z]*\.[\w.:-]+$/;
 for (const f of ['public/panel.js', 'public/prompter.js', 'main.js', ...fs.readdirSync(path.join(ROOT, 'server')).filter((x) => x.endsWith('.js')).map((x) => `server/${x}`)]) {
   const s = read(f);
   for (const m of s.matchAll(/\bt\(\s*'([^']+)'/g)) add(m[1], f);
@@ -30,6 +30,8 @@ actions.forEach((a) => add(`action.${a}`, 'panel.js ACTIONS'));
 ['ffzGlobal', 'bttvGlobal', 'stvGlobal', 'ffzChannel', 'bttvChannel', 'stvChannel'].forEach((s) => add(`src.${s}`, 'emotes.js'));
 ['de', 'en', 'fr', 'es'].forEach((l) => add(`lang.${l}`, 'panel.js VOICE_LANGS'));
 add('voice.err.download', 'voice.js');
+['forward', 'back', 'toggle'].forEach((c) => add(`clicker.${c}`, 'panel.js clicker'));
+['p.noScript', 'p.emptyScript', 'p.chatNew'].forEach((k) => add(k, 'prompter.js'));
 add('err.cam.obs', 'prompter.js');
 
 let problems = 0;
