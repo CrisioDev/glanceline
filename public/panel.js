@@ -493,6 +493,7 @@
       extra: `<p class="hint" id="obsSettingsState"></p><h3 class="sub">${esc(t('obsAuto.scenes'))}</h3><p class="hint">${esc(t('obsAuto.scenesHint'))}</p><div id="sceneModes"></div>`,
     },
     { id: 'sec-profiles', title: 'profiles.title', custom: 'profiles' },
+    { id: 'sec-midi', title: 'midi.title', custom: 'midi' },
     { id: 'sec-network', title: 'settings.sec.network', custom: 'network' },
     { id: 'sec-integrations', title: 'settings.sec.integrations', custom: 'integrations' },
     { id: 'sec-hotkeys', title: 'settings.sec.hotkeys', custom: 'hotkeys' },
@@ -606,6 +607,46 @@
     }
   }
 
+  function midiHtml() {
+    const acts = [...ACTIONS.map((a) => [a, t(`action.${a}`)]), ['script:speed', t('midi.speed')]];
+    return `<p class="lead">${esc(t('midi.lead'))}</p>
+      <label class="switch-row"><span class="lbl">${esc(t('midi.enabled'))}<small class="hint" id="midiDevices"></small></span><span class="switch"><input type="checkbox" data-setting="midi.enabled"><span class="knob"></span></span></label>
+      <div id="midiMap"></div>
+      <div class="profile-new"><select id="midiAction">${acts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select><button class="btn" id="midiLearn"><span></span></button></div>
+      <p class="hint" id="midiLearnState"></p>`;
+  }
+
+  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  function midiKeyLabel(key) {
+    const [type, ch, n] = key.split(':');
+    const num = Number(n);
+    const what = type === 'note' ? `${t('midi.note')} ${num} (${NOTE_NAMES[num % 12]}${Math.floor(num / 12) - 1})` : type === 'cc' ? `CC ${num}` : `${t('midi.program')} ${num + 1}`;
+    return `${what} · ${t('midi.channel')} ${ch}`;
+  }
+
+  function renderMidi() {
+    const box = $('#midiMap');
+    if (!box) return;
+    const m = live.midi || {};
+    const devs = m.devices || [];
+    setText($('#midiDevices'), !settings.midi.enabled ? t('midi.offHint') : m.error ? m.error : !live.clients.main ? t('midi.noPrompter') : devs.length ? t('midi.devices', { list: devs.join(', ') }) : t('midi.noDevices'));
+    const map = Object.entries(settings.midi.map);
+    const label = (a) => (a === 'script:speed' ? t('midi.speed') : t(`action.${a}`));
+    const sig = JSON.stringify([map, lang]);
+    if (box._sig !== sig) {
+      box._sig = sig;
+      box.innerHTML = map.length
+        ? `<table class="scene-table"><tbody>${map.map(([k, a]) => `<tr><td>${esc(midiKeyLabel(k))}</td><td>${esc(label(a))}</td><td style="text-align:right"><button class="btn icon sm" data-midi-unmap="${esc(k)}" title="${esc(t('midi.unmap'))}"><i data-icon="x"></i></button></td></tr>`).join('')}</tbody></table>`
+        : `<p class="hint">${esc(t('midi.empty'))}</p>`;
+      hydrateIcons(box);
+    }
+    const learning = Boolean(m.learn);
+    setText($('#midiLearn').querySelector('span'), learning ? t('midi.cancel') : t('midi.learn'));
+    $('#midiLearn').classList.toggle('armed', learning);
+    $('#midiLearn').disabled = !settings.midi.enabled;
+    setText($('#midiLearnState'), learning ? t(m.learn === 'script:speed' ? 'midi.learningSpeed' : 'midi.learning', { action: label(m.learn) }) : m.last && Date.now() - m.last.at < 4000 ? t('midi.lastSeen', { key: midiKeyLabel(m.last.key) }) : '');
+  }
+
   function integrationsHtml() {
     return `<p class="lead">${esc(t('integ.lead'))}</p>
       <h3 class="sub">Stream Deck</h3>
@@ -647,6 +688,7 @@
       else if (sec.custom === 'hotkeys') body = hotkeysHtml();
       else if (sec.custom === 'integrations') body = integrationsHtml();
       else if (sec.custom === 'profiles') body = profilesHtml();
+      else if (sec.custom === 'midi') body = midiHtml();
       else body = (sec.lead ? `<p class="lead">${esc(t(sec.lead))}</p>` : '') + sec.fields.map(fieldHtml).join('');
       return `<div class="card" id="${sec.id}"><div class="card-head"><h2>${esc(t(sec.title))}</h2></div>${body}${sec.extra || ''}</div>`;
     }).join('');
@@ -930,6 +972,7 @@
     renderFolder();
     renderIntegrations();
     renderProfiles();
+    renderMidi();
     renderConn();
     renderNetwork();
     renderPhone();
@@ -1522,6 +1565,14 @@
     $('#folderOpen').hidden = !f.folder;
     $('#folderClear').hidden = !f.folder;
   }
+
+  // ---------- MIDI
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'midiLearn') S.action('midi:learn', { target: live.midi && live.midi.learn ? '' : $('#midiAction').value }).catch(() => {});
+    else if (b.dataset.midiUnmap) S.action('midi:unmap', { key: b.dataset.midiUnmap }).catch(() => {});
+  });
 
   // ---------- Profile
   $('#profileSelect').addEventListener('change', (e) => S.action('profile:apply', { id: e.target.value }).catch(() => {}));

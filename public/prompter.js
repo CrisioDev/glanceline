@@ -53,6 +53,66 @@
 
   // ---------------------------------------------------------------- Einstellungen
 
+  // ---------------------------------------------------------------- MIDI-Controller
+  // Nur das Haupt-Prompter-Fenster liest MIDI und meldet Tasten/Regler an den Server (Zuordnung dort).
+  const midi = { access: null, pending: false, cc: new Map() };
+
+  async function syncMidi() {
+    if (!IS_MAIN || !settings || !navigator.requestMIDIAccess) return;
+    const want = settings.midi.enabled;
+    if (want && !midi.access && !midi.pending) {
+      midi.pending = true;
+      try {
+        midi.access = await navigator.requestMIDIAccess({ sysex: false });
+        midi.access.onstatechange = bindMidi;
+        bindMidi();
+      } catch (e) {
+        reportMidiDevices(String((e && e.message) || e));
+      }
+      midi.pending = false;
+    } else if (!want && midi.access) {
+      for (const input of midi.access.inputs.values()) input.onmidimessage = null;
+      midi.access.onstatechange = null;
+      midi.access = null;
+      reportMidiDevices('');
+    }
+  }
+
+  function bindMidi() {
+    if (!midi.access) return;
+    for (const input of midi.access.inputs.values()) input.onmidimessage = (e) => onMidi(e.data);
+    reportMidiDevices('');
+  }
+
+  function reportMidiDevices(error) {
+    const devices = midi.access ? [...midi.access.inputs.values()].filter((i) => i.state !== 'disconnected').map((i) => i.name) : [];
+    S.api('/api/report', { kind: 'midi-devices', devices, error }).catch(() => {});
+  }
+
+  // Rohdaten → { key, down, value }; Regler (CC) gelten ab Wert 64 als „gedrückt“
+  function parseMidi(data, ccState) {
+    const [status, d1 = 0, d2 = 0] = data;
+    const type = status & 0xf0;
+    const ch = (status & 0x0f) + 1;
+    if (type === 0x90 && d2 > 0) return { key: `note:${ch}:${d1}`, down: true };
+    if (type === 0x80 || type === 0x90) return { key: `note:${ch}:${d1}`, down: false };
+    if (type === 0xc0) return { key: `pc:${ch}:${d1}`, down: true };
+    if (type === 0xb0) {
+      const key = `cc:${ch}:${d1}`;
+      const prev = ccState.has(key) ? ccState.get(key) : 0;
+      ccState.set(key, d2);
+      const down = d2 >= 64 && prev < 64 ? true : d2 < 64 && prev >= 64 ? false : null;
+      return { key, down, value: d2 };
+    }
+    return null;
+  }
+  window.GlancelineMidi = { parseMidi }; // für Tests
+
+  function onMidi(data) {
+    const m = parseMidi(data, midi.cc);
+    if (m) S.api('/api/report', { kind: 'midi', ...m }).catch(() => {});
+  }
+
   function applySettings() {
     const s = settings;
     const lang = window.GlancelineI18n.resolveLang(s.general.language);
@@ -90,6 +150,7 @@
     layoutScript();
     renderPpt(true);
     trimChat();
+    syncMidi();
   }
 
   // ---------------------------------------------------------------- Chat

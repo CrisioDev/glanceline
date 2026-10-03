@@ -147,6 +147,7 @@ class Glanceline extends EventEmitter {
       youtube: {},
       kick: {},
       folder: { folder: '', files: 0, error: '' },
+      midi: { devices: [], error: '', learn: null, last: null },
       camera: { active: false, error: '', label: '', devices: [] },
       displays: [],
       prompter: { kind: 'none', display: null },
@@ -645,6 +646,65 @@ class Glanceline extends EventEmitter {
     }
   }
 
+  // ---------- MIDI ----------
+
+  // Ereignis vom Controller (gemeldet vom Prompter-Fenster, das Web MIDI liest).
+  // down: true = gedrückt, false = losgelassen, null = Regler bewegt
+  _midi(key, down, value) {
+    if (!/^(note|cc|pc):\d{1,2}:\d{1,3}$/.test(key)) return;
+    const L = this.live;
+    L.midi.last = { key, at: Date.now() };
+    if (L.midi.learn) {
+      // Tempo lernt mit jedem Regler, alles andere mit einem Tastendruck
+      if (down === true || (L.midi.learn === 'script:speed' && key.startsWith('cc:'))) {
+        const target = L.midi.learn;
+        L.midi.learn = null;
+        clearTimeout(this.midiLearnTimer);
+        this.patchSettings({ midi: { map: { ...this.settings.midi.map, [key]: target } } });
+      }
+      this.touch();
+      return;
+    }
+    this.touch();
+    const act = this.settings.midi.map[key];
+    if (!act || !this.settings.midi.enabled) return;
+    if (act === 'script:speed') {
+      if (Number.isFinite(value)) this.patchSettings({ script: { speed: Math.round(10 + (clamp(value, 0, 127) / 127) * 290) } });
+      return;
+    }
+    this.midiHolds = this.midiHolds || {};
+    const scroll = act === 'view:back' || act === 'view:forward';
+    if (down === true) {
+      if (scroll && L.mode === 'script') {
+        // wie Clicker & Stream Deck: antippen = eine Zeile, halten = flüssig scrollen
+        const dir = act === 'view:forward' ? 1 : -1;
+        this._midiRelease(key);
+        this.action({ type: act, target: 'script', amount: 'line', source: 'midi' });
+        const hold = {};
+        hold.delay = setTimeout(() => {
+          hold.timer = setInterval(() => this.action({ type: 'script:hold', dir }), 150);
+          this.action({ type: 'script:hold', dir });
+        }, 350);
+        this.midiHolds[key] = hold;
+      } else {
+        this.action({ type: act, source: 'midi' });
+      }
+    } else if (down === false) {
+      this._midiRelease(key);
+    }
+  }
+
+  _midiRelease(key) {
+    const h = this.midiHolds && this.midiHolds[key];
+    if (!h) return;
+    clearTimeout(h.delay);
+    if (h.timer) {
+      clearInterval(h.timer);
+      this.action({ type: 'script:hold', dir: 0 });
+    }
+    delete this.midiHolds[key];
+  }
+
   // ---------- Profile ----------
 
   // Profil für einen Modus: im Skript-Modus zuerst das Profil des Skripts, sonst die Zuordnung je Modus
@@ -846,6 +906,23 @@ class Glanceline extends EventEmitter {
         break;
       }
 
+      case 'midi:learn':
+        // Nächste Taste am Controller wird dieser Aktion zugeordnet (ohne Ziel = abbrechen)
+        L.midi.learn = a.target ? String(a.target) : null;
+        clearTimeout(this.midiLearnTimer);
+        if (L.midi.learn) {
+          this.midiLearnTimer = setTimeout(() => {
+            L.midi.learn = null;
+            this.touch();
+          }, 20000);
+        }
+        break;
+      case 'midi:unmap': {
+        const map = { ...s.midi.map };
+        delete map[a.key];
+        this.patchSettings({ midi: { map } });
+        break;
+      }
       case 'profile:save': {
         const list = s.profiles.list;
         const name = String(a.name || '').trim().slice(0, 40) || t(this.lang(), 'profiles.defaultName', { n: list.length + 1 });
@@ -998,6 +1075,10 @@ class Glanceline extends EventEmitter {
     if (isObj(patch.obsAuto) && isObj(patch.obsAuto.sceneModes)) {
       this.settings.obsAuto.sceneModes = { ...patch.obsAuto.sceneModes };
       delete patch.obsAuto.sceneModes;
+    }
+    if (isObj(patch.midi) && isObj(patch.midi.map)) {
+      this.settings.midi.map = { ...patch.midi.map };
+      delete patch.midi.map;
     }
     // Profil-Zuordnung je Modus ebenfalls ersetzen
     if (isObj(patch.profiles) && isObj(patch.profiles.byMode)) {
@@ -1166,6 +1247,12 @@ class Glanceline extends EventEmitter {
         base: startOver ? at : prev.base,
         baseIndex: startOver ? b.index : prev.baseIndex,
       };
+    } else if (b.kind === 'midi-devices') {
+      L.midi.devices = (Array.isArray(b.devices) ? b.devices : []).map((d) => String(d).slice(0, 80)).slice(0, 20);
+      L.midi.error = String(b.error || '').slice(0, 200);
+    } else if (b.kind === 'midi') {
+      this._midi(String(b.key || ''), b.down, Number(b.value));
+      return;
     } else if (b.kind === 'voice-seek') {
       if (Number.isFinite(b.pos)) this.voice.seek(b.pos);
       return;

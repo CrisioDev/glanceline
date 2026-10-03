@@ -31,6 +31,7 @@ let panelWin = null;
 let tray = null;
 let quitting = false;
 let hotkeysSuspended = false;
+const ALLOWED_PERMISSIONS = new Set(['media', 'midi', 'midiSysex']);
 
 app.setAppUserModelId(APP_ID);
 
@@ -64,9 +65,11 @@ async function boot() {
   // Kamera nur für die eigene, lokale Oberfläche freigeben
   const isOwn = (url) => /^http:\/\/(127\.0\.0\.1|localhost):\d+/.test(url || '');
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
-    callback(permission === 'media' && isOwn(details.requestingUrl || wc.getURL()));
+    // Kamera/Mikrofon und MIDI-Controller nur für die eigenen Seiten. Chromium fragt auch für MIDI ohne
+    // SysEx inzwischen „midiSysex“ an; die Seite selbst fordert kein SysEx an.
+    callback(ALLOWED_PERMISSIONS.has(permission) && isOwn(details.requestingUrl || wc.getURL()));
   });
-  session.defaultSession.setPermissionCheckHandler((wc, permission, origin) => permission === 'media' && isOwn(origin));
+  session.defaultSession.setPermissionCheckHandler((wc, permission, origin) => ALLOWED_PERMISSIONS.has(permission) && isOwn(origin));
 
   core.on('autostart', () => {
     applyAutostart();
