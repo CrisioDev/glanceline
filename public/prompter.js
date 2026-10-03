@@ -1101,7 +1101,7 @@
       box.classList.remove('show');
       void box.offsetWidth; // Einblend-Animation neu starten
     }
-    setText(box.firstElementChild, on ? d.text : '');
+    setText(box.firstElementChild, on ? (d.countdown ? `${d.text} · ${S.fmtDur(d.until - serverNow())}` : d.text) : '');
     box.classList.toggle('show', on);
   }
 

@@ -290,6 +290,10 @@ html.cam-on .msg.event { background: linear-gradient(90deg, color-mix(in srgb, v
 .msg.ev-raid, .toast.ev-raid { --evc: #ff7043; }
 .msg.ev-bits, .toast.ev-bits { --evc: #26c6da; }
 .msg.ev-announcement, .toast.ev-announcement { --evc: #66bb6a; }
+.msg.ev-follow, .toast.ev-follow { --evc: #ef5350; }
+.msg.ev-reward, .toast.ev-reward { --evc: #9147ff; }
+.msg.ev-hype, .toast.ev-hype { --evc: #ffb300; }
+.msg.ev-info, .toast.ev-info { --evc: #78909c; }
 .msg.ev-emote { --evc: #29b6f6; font-size: .85em; }
 .ev-head { display: flex; align-items: center; gap: .45em; font-weight: 700; }
 .ev-icon { font-size: 1.05em; }

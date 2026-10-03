@@ -9,6 +9,7 @@ const { systemFonts } = require('./fonts');
 const { TwitchChat } = require('./twitch');
 const { YouTubeChat } = require('./youtube');
 const { KickChat } = require('./kick');
+const { TwitchEventSub, DEFAULT_CLIENT_ID } = require('./eventsub');
 const { ScriptFolder } = require('./library');
 const { zipFolder } = require('./zip');
 const { ObsClient } = require('./obs');
@@ -146,6 +147,7 @@ class Glanceline extends EventEmitter {
       twitch: {},
       youtube: {},
       kick: {},
+      eventsub: {},
       folder: { folder: '', files: 0, error: '' },
       midi: { devices: [], error: '', learn: null, last: null },
       camera: { active: false, error: '', label: '', devices: [] },
@@ -161,6 +163,7 @@ class Glanceline extends EventEmitter {
     this.twitch = new TwitchChat(() => this.settings);
     this.youtube = new YouTubeChat(() => this.settings);
     this.kick = new KickChat(() => this.settings);
+    this.eventsub = new TwitchEventSub({ getSettings: () => this.settings, store: { load: () => this.store.loadAuth(), save: (a) => this.store.saveAuth(a) } });
     this.folder = new ScriptFolder();
     this.obs = new ObsClient(() => this.settings);
     this.ppt = new PowerPointWatcher();
@@ -224,6 +227,20 @@ class Glanceline extends EventEmitter {
       this.touch();
     });
     this.folder.on('status', (st) => { this.live.folder = st; this.touch(); });
+    const esStatus = (st) => {
+      this.live.eventsub = { ...st, hasClientId: Boolean(this.settings.twitch.clientId.trim() || DEFAULT_CLIENT_ID) };
+      this.touch();
+    };
+    this.eventsub.on('status', esStatus);
+    esStatus(this.eventsub.status);
+    this.eventsub.on('message', (m) => this._chat(m));
+    this.eventsub.on('openExternal', (url) => this.emit('openExternal', url));
+    // Werbepause: Countdown als Regie-Banner auf dem Prompter
+    this.eventsub.on('adBreak', ({ seconds }) => {
+      if (!seconds) return;
+      this.live.director = { id: newId(), text: t(this.lang(), 'p.adBreak'), until: Date.now() + seconds * 1000, countdown: true };
+      this.touch();
+    });
     this.folder.on('files', (files) => this._syncFolder(files));
     this.ppt.on('update', (p) => this._ppt(p));
     this.ppt.on('log', (l) => l && console.warn('[ppt]', l));
@@ -245,6 +262,7 @@ class Glanceline extends EventEmitter {
     this.twitch.start();
     this.youtube.start();
     this.kick.start();
+    this.eventsub.start();
     this.folder.watch(this.settings.library.folder);
     this.obs.start();
     this.ppt.start();
@@ -259,6 +277,7 @@ class Glanceline extends EventEmitter {
     this.twitch.stop();
     this.youtube.stop();
     this.kick.stop();
+    this.eventsub.stop();
     this.folder.stop();
     this.obs.stop();
     this.ppt.stop();
@@ -549,6 +568,8 @@ class Glanceline extends EventEmitter {
   // ---------- Chat ----------
 
   _chat(m) {
+    // Mit EventSub kommt jede Kanalpunkte-Einlösung samt Text als Ereignis – die Chat-Kopie wäre doppelt
+    if (m.reward && (m.platform || 'twitch') === 'twitch' && this.live.eventsub.state === 'connected') return;
     this.history.push(m);
     if (this.history.length > HISTORY_SIZE) this.history.splice(0, this.history.length - HISTORY_SIZE);
     this.broadcast('chat', m, (c) => c.role === 'main' || c.role === 'preview');
@@ -906,6 +927,15 @@ class Glanceline extends EventEmitter {
         break;
       }
 
+      case 'twitch:login':
+        this.eventsub.login();
+        break;
+      case 'twitch:loginCancel':
+        this.eventsub.cancelLogin();
+        break;
+      case 'twitch:logout':
+        this.eventsub.logout();
+        break;
       case 'midi:learn':
         // Nächste Taste am Controller wird dieser Aktion zugeordnet (ohne Ziel = abbrechen)
         L.midi.learn = a.target ? String(a.target) : null;
@@ -1067,7 +1097,7 @@ class Glanceline extends EventEmitter {
 
   patchSettings(patch) {
     if (!isObj(patch)) return;
-    const watched = ['clicker', 'library.folder', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
+    const watched = ['clicker', 'twitch.clientId', 'library.folder', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
     const snap = (k) => JSON.stringify(getPath(this.settings, k));
     const before = Object.fromEntries(watched.map((k) => [k, snap(k)]));
 
@@ -1109,6 +1139,7 @@ class Glanceline extends EventEmitter {
       this.kick.reloadEmotes();
     }
     if (changed('obs')) this.obs.restart();
+    if (changed('twitch.clientId')) this.eventsub._set({}); // „Verbinden“-Knopf freigeben
     if (changed('library.folder')) this.folder.watch(this.settings.library.folder);
     if (changed('hotkeys') || changed('clicker')) this.emit('hotkeys');
     if (changed('display')) this.emit('display');
