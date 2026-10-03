@@ -800,8 +800,8 @@
       if (!p.running || p.mode === 'none') return 'PowerPoint';
       const parts = [];
       if (p.slide) parts.push(t('p.slide', { n: p.slide, total: p.total }));
-      const t = p.timer;
-      if (settings.ppt.showTimer && (t.running || t.acc > 0)) parts.push(`⏱ ${S.fmtDur(pptElapsed())}`);
+      const timer = p.timer; // nicht „t“ nennen – das ist die Übersetzungsfunktion
+      if (settings.ppt.showTimer && (timer.running || timer.acc > 0)) parts.push(`⏱ ${S.fmtDur(pptElapsed())}`);
       return parts.join('   ·   ') || p.file;
     }
     if (m === 'camera') return t('mode.camera');
