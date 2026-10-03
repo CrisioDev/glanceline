@@ -7,7 +7,7 @@ const crypto = require('crypto');
 // Umfragen, Vorhersagen und Werbepausen. Gilt für den Kanal des angemeldeten Kontos.
 
 // Öffentliche Client-ID der Glanceline-App (dev.twitch.tv → Anwendung, Typ „Öffentlich“). Leer = eigene ID in den Einstellungen nötig.
-const DEFAULT_CLIENT_ID = '';
+const DEFAULT_CLIENT_ID = '39b564a7yj5tjx61edt4auwdqwgtuj';
 const SCOPES = ['moderator:read:followers', 'channel:read:redemptions', 'channel:read:hype_train', 'channel:read:polls', 'channel:read:predictions', 'channel:read:ads'];
 const WS_URL = 'wss://eventsub.wss.twitch.tv/ws';
 const ID = 'https://id.twitch.tv/oauth2';

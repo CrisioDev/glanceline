@@ -64,7 +64,7 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 
 ## Phase 2 — Reach & integrations (v0.4)
 
-✅ **Done in Oct 2026.** Twitch EventSub still needs a registered public Twitch app for the built-in client ID.
+✅ **Done in Oct 2026.**
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
