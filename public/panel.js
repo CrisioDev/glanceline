@@ -379,8 +379,11 @@
     {
       id: 'sec-chat',
       title: 'chat.title',
+      lead: 'settings.sec.chatLead',
       fields: [
         { k: 'chat.channel', l: 'settings.channel', type: 'text', placeholder: t('setup.channelPlaceholder') },
+        { k: 'chat.youtube', l: 'settings.youtube', type: 'text', placeholder: '@handle', h: 'settings.youtubeHint' },
+        { k: 'chat.kick', l: 'settings.kick', type: 'text', placeholder: t('setup.channelPlaceholder'), h: 'settings.kickHint' },
         { k: 'chat.fontSize', l: 'settings.fontSize', type: 'range', min: 16, max: 72, step: 1, fmt: 'px' },
         { k: 'chat.emoteScale', l: 'settings.emoteScale', type: 'range', min: 1, max: 3, step: 0.1, fmt: 'x' },
         { k: 'chat.maxMessages', l: 'settings.maxMessages', type: 'number', min: 5, max: 200 },
@@ -395,6 +398,17 @@
         { k: 'chat.hideBots', l: 'settings.hideBots', type: 'list', h: 'settings.hideBotsHint' },
         { k: 'chat.highlightWords', l: 'settings.highlightWords', type: 'list', h: 'settings.highlightWordsHint' },
         { k: 'chat.fadeAfter', l: 'settings.fadeAfter', type: 'number', min: 0, max: 3600, unit: t('settings.fadeAfterUnit') },
+      ],
+    },
+    {
+      id: 'sec-timers',
+      title: 'show.title',
+      lead: 'settings.sec.timersLead',
+      fields: [
+        { k: 'timers.show', l: 'timers.show', type: 'toggle', h: 'timers.showHint' },
+        { k: 'timers.minutes', l: 'timers.minutes', type: 'number', min: 0, max: 600, unit: t('timers.minutesUnit'), h: 'timers.minutesHint' },
+        { k: 'timers.warn', l: 'timers.warn', type: 'number', min: 0, max: 60, unit: t('timers.minutesUnit') },
+        { k: 'timers.start', l: 'timers.start', type: 'select', options: [['script', t('timers.startScript')], ['stream', t('timers.startStream')], ['manual', t('timers.startManual')]] },
       ],
     },
     {
@@ -481,7 +495,7 @@
     'mode:chat', 'mode:script', 'mode:obs', 'mode:ppt', 'mode:camera', 'blackout', 'camera:toggle',
     'script:toggle', 'script:slower', 'script:faster', 'view:back', 'view:forward',
     'script:prevSection', 'script:nextSection', 'script:restart', 'script:reverse', 'font:bigger', 'font:smaller', 'ppt:timerReset', 'voice:toggle',
-    'passthrough', 'chat:pause', 'insert:1', 'insert:2', 'insert:3', 'insert:4', 'director:clear',
+    'passthrough', 'chat:pause', 'insert:1', 'insert:2', 'insert:3', 'insert:4', 'director:clear', 'show:toggle', 'show:reset',
   ];
   const VOICE_LANGS = ['de', 'en', 'fr', 'es'];
 
@@ -643,6 +657,8 @@
   function maybeShowSetup() {
     if (!settings || settings.general.setupDone || !IS_LOCAL || setupDialog.open) return;
     $('#setupChannel').value = settings.chat.channel || '';
+    $('#setupYoutube').value = settings.chat.youtube || '';
+    $('#setupKick').value = settings.chat.kick || '';
     setupDialog.showModal();
     renderSetup();
   }
@@ -662,10 +678,12 @@
 
   $('#setupDone').addEventListener('click', () => {
     const channel = $('#setupChannel').value.trim().replace(/^#/, '').toLowerCase();
-    S.api('/api/settings', { chat: { channel }, general: { setupDone: true } }).catch(() => note(t('note.saveFailed')));
+    const youtube = $('#setupYoutube').value.trim();
+    const kick = $('#setupKick').value.trim();
+    S.api('/api/settings', { chat: { channel, youtube, kick }, general: { setupDone: true } }).catch(() => note(t('note.saveFailed')));
     settings.general.setupDone = true;
     setupDialog.close();
-    if (channel) setTimeout(() => S.action('chat:demo').catch(() => {}), 2500);
+    if (channel || youtube || kick) setTimeout(() => S.action('chat:demo').catch(() => {}), 2500);
   });
   setupDialog.addEventListener('cancel', (e) => e.preventDefault()); // nur über „Los geht's“ schließen
 
@@ -813,6 +831,7 @@
     renderCamCard();
     renderVoice();
     renderPhase1();
+    renderShow();
     renderConn();
     renderNetwork();
     renderPhone();
@@ -836,6 +855,23 @@
 
   const chip = (cls, text) => `<span class="chip ${cls}">${esc(text)}</span>`;
 
+  // Kurzbeschreibung des Zustands von YouTube- und Kick-Chat
+  const viewersText = (n) => (n == null ? '' : ` · ${t('chat.viewers', { n: n.toLocaleString(locale) })}`);
+  const used = (x) => Boolean(x && x.state && x.state !== 'off');
+  function ytText(yt) {
+    if (yt.state === 'error') return t(yt.error, yt.errorVars);
+    if (yt.state === 'live') return `${yt.channel} · ${t('state.live')}${viewersText(yt.viewers)}`;
+    if (yt.state === 'offline') return `${yt.channel} · ${yt.error ? t(yt.error, yt.errorVars) : t('state.notLive')}`;
+    return `${yt.channel} · ${t('state.searching')}`;
+  }
+  function kickText(kk) {
+    if (kk.state === 'error') return t(kk.error, kk.errorVars);
+    if (kk.connected) return `kick.com/${kk.channel} · ${kk.live ? `${t('state.live')}${viewersText(kk.viewers)}` : t('state.notLive')}`;
+    return `${kk.channel} · ${t('state.connecting')}`;
+  }
+  const ytCls = (yt) => (yt.state === 'live' ? 'ok' : yt.state === 'error' ? 'bad' : yt.state === 'offline' ? '' : 'warn');
+  const kickCls = (kk) => (kk.state === 'error' ? 'bad' : kk.connected ? (kk.live ? 'ok' : '') : 'warn');
+
   function renderChips() {
     const out = [];
     const p = live.prompter || {};
@@ -845,6 +881,8 @@
     else out.push(chip('bad', t('chip.noPrompter')));
     const tw = live.twitch || {};
     if (tw.channel) out.push(tw.joined ? chip('ok', `#${tw.channel}`) : tw.connected ? chip('warn', 'Twitch …') : chip('bad', 'Twitch'));
+    if (used(live.youtube)) out.push(chip(ytCls(live.youtube), 'YouTube'));
+    if (used(live.kick)) out.push(chip(kickCls(live.kick), 'Kick'));
     const o = live.obs || {};
     out.push(!o.connected ? chip('bad', 'OBS') : o.streaming ? chip('live', `LIVE ${S.fmtDur(o.streamMs + obsSince())}`) : chip('ok', 'OBS'));
     const pp = live.ppt || {};
@@ -882,14 +920,18 @@
     if (list._body !== body) {
       list._body = body;
       list.innerHTML = S.renderScript(body)
-        .sections.map((s, i) => `<li class="l${s.level}"><button data-section="${i}"><span>${i + 1}</span>${esc(s.title.replace(/\*\*|==|[*[\]]/g, ''))}</button></li>`)
+        .sections.map((s, i) => `<li class="l${s.level}"><button data-section="${i}"><span>${i + 1}</span>${esc(s.title.replace(/\*\*|==|[*[\]]/g, ''))}${s.target ? `<em class="tgt">${S.fmtDur(s.target * 1000)}</em>` : ''}</button></li>`)
         .join('');
     }
   }
 
   function renderChatCard() {
     const tw = live.twitch || {};
-    setState($('#chatState'), !tw.channel ? ['', t('chat.noChannel')] : tw.joined ? ['ok', t('state.connected')] : tw.connected ? ['warn', t('state.connecting')] : ['bad', t('state.disconnected')]);
+    const yt = live.youtube || {};
+    const kk = live.kick || {};
+    const anyChat = tw.channel || used(yt) || used(kk);
+    const anyOk = tw.joined || yt.state === 'live' || kk.connected;
+    setState($('#chatState'), !anyChat ? ['', t('chat.noChannel')] : anyOk ? ['ok', t('state.connected')] : tw.connected || yt.state === 'searching' || kk.state === 'searching' ? ['warn', t('state.connecting')] : ['bad', t('state.disconnected')]);
     const e = tw.emotes;
     const prov = settings.chat.providers;
     const fmtE = (on, x) => (!on ? t('state.off') : !x ? t('state.loading') : t('chat.emoteCount', { channel: x.channel, global: x.global }));
@@ -904,13 +946,15 @@
             ? t('chat.stvLive')
             : `${t('state.connecting')}${stv.error ? ` (${stv.error})` : ''}`;
     const facts = [
-      [t('chat.channel'), tw.channel ? `#${tw.channel}` : t('chat.noChannelHint')],
+      ['Twitch', tw.channel ? `#${tw.channel}${tw.joined ? viewersText(tw.viewers) : ` · ${t('state.connecting')}`}` : anyChat ? t('state.off') : t('chat.noChannelHint')],
       ['7TV', fmtE(prov.seventv, e && e.seventv)],
       [t('chat.stvLiveLabel'), stvLive],
       ['BTTV', fmtE(prov.bttv, e && e.bttv)],
       ['FFZ', fmtE(prov.ffz, e && e.ffz)],
     ];
-    if (tw.error) facts.push([t('chat.notice'), t(tw.error, tw.errorVars)]);
+    if (used(yt)) facts.splice(1, 0, ['YouTube', ytText(yt)]);
+    if (used(kk)) facts.splice(used(yt) ? 2 : 1, 0, ['Kick', kickText(kk)]);
+    if (tw.error && tw.channel) facts.push([t('chat.notice'), t(tw.error, tw.errorVars)]);
     setFacts($('#chatFacts'), facts);
     setText($('#emoteErrors'), (tw.emoteErrors || []).map((x) => (typeof x === 'string' ? x : `${t(`src.${x.src}`)}: ${x.msg}`)).join(' · '));
   }
@@ -967,6 +1011,40 @@
     }
     setFacts($('#pptFacts'), facts);
     setText($('#pptNotesPreview'), p.notes || '');
+  }
+
+  // Show-Timer & Zeitplan
+  function renderShow() {
+    const sh = live.show || { running: false, acc: 0, startedAt: 0 };
+    const tm = settings.timers;
+    const clock = S.showClock(sh, tm, serverNow());
+    const timeEl = $('#showTime');
+    setText(timeEl, clock.left == null ? S.fmtDur(clock.elapsed) : clock.left < 0 ? S.fmtSigned(-clock.left) : S.fmtDur(clock.left));
+    timeEl.classList.toggle('over', clock.left != null && clock.left < 0);
+    const tg = $('#showToggle');
+    setText(tg.querySelector('span'), sh.running ? t('script.pause') : t('script.start'));
+    setIcon(tg.querySelector('i'), sh.running ? 'pause' : 'play');
+
+    const parts = [];
+    if (clock.total) {
+      const cls = clock.left < 0 ? 'over' : clock.left <= tm.warn * 60000 ? 'warn' : '';
+      parts.push(`<span>${esc(t('show.of', { total: S.fmtDur(clock.total) }))}</span>`);
+      parts.push(`<span class="${cls}">${esc(clock.left < 0 ? t('show.over', { time: S.fmtDur(-clock.left) }) : t('show.left', { time: S.fmtDur(clock.left) }))}</span>`);
+    } else if (!clock.started) {
+      parts.push(`<span>${esc(t(tm.start === 'script' ? 'show.autoScript' : tm.start === 'stream' ? 'show.autoStream' : 'show.manual'))}</span>`);
+    }
+    const active = scripts.items.find((i) => i.id === scripts.activeId);
+    const sec = live.section;
+    if (active && sec && sec.id === active.id) {
+      const ros = S.runOfShow(S.renderScript(active.body).sections, sec, clock.elapsed);
+      if (ros) {
+        const title = ros.title.replace(/\*\*|==|[*[\]]/g, '');
+        parts.push(`<span>§ ${esc(title)} · ${S.fmtDur(ros.inSec)}${ros.target ? ` / ${S.fmtDur(ros.target)}` : ''}</span>`);
+        const d = Math.abs(ros.delta) < 1000 ? 0 : ros.delta;
+        parts.push(`<span class="${d > 0 ? 'behind' : 'ahead'}">${esc(d > 0 ? t('show.behind', { time: S.fmtDur(d) }) : d < 0 ? t('show.ahead', { time: S.fmtDur(-d) }) : t('show.onTime'))}</span>`);
+      }
+    }
+    setHtml($('#showDetail'), parts.join(''));
   }
 
   function renderPhase1() {
@@ -1085,6 +1163,8 @@
         !tw.channel ? '' : tw.joined ? 'ok' : tw.connected ? 'warn' : 'bad',
         !tw.channel ? t('chat.noChannelHint') : tw.joined ? t('conn.twitchOk', { channel: tw.channel, n: emoteTotal }) : t(tw.error || 'state.connecting', tw.errorVars),
       ],
+      ...(used(live.youtube) ? [['YouTube', ytCls(live.youtube), ytText(live.youtube)]] : []),
+      ...(used(live.kick) ? [['Kick', kickCls(live.kick), kickText(live.kick)]] : []),
       ['OBS', o.connected ? 'ok' : 'bad', o.connected ? `${o.streaming ? 'LIVE' : t('conn.obsReady')}${o.scene ? ` · ${o.scene}` : ''}` : t(o.error || 'err.obs.notConnected')],
       ['PowerPoint', p.running ? 'ok' : '', p.running ? (p.mode === 'show' ? t('conn.pptShow', { n: p.slide, total: p.total }) : p.file || t('ppt.open')) : t('ppt.notOpen')],
       [
@@ -1340,6 +1420,7 @@
     renderObsCard();
     renderPptCard();
     renderPhase1(); // Restzeit der Regie-Nachricht
+    renderShow();
   }, 1000);
 
   // ---------------------------------------------------------------- Start

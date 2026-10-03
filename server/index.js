@@ -7,6 +7,8 @@ const { EventEmitter } = require('events');
 const { Store, DEFAULT_HOTKEYS, newId, newToken } = require('./store');
 const { systemFonts } = require('./fonts');
 const { TwitchChat } = require('./twitch');
+const { YouTubeChat } = require('./youtube');
+const { KickChat } = require('./kick');
 const { ObsClient } = require('./obs');
 const { PowerPointWatcher } = require('./powerpoint');
 const { VoiceEngine, VOICE_LANGUAGES } = require('./voice');
@@ -127,10 +129,14 @@ class Glanceline extends EventEmitter {
       script: { playing: false, pos: 0, max: 0, dir: 1, instant: false, restoreTo: null },
       chat: { paused: false, offset: 0 },
       director: null, // { id, text, until } – Regie-Nachricht auf dem Prompter
+      show: { running: false, startedAt: 0, acc: 0 }, // Show-Timer (ms)
+      section: null, // aktueller Skript-Abschnitt für den Zeitplan: { id, index, title, at, base, baseIndex }
       insert: null, // laufender Einschub: { slot, title, prev }
       ppt: { running: false, mode: 'none', slide: 0, total: 0, title: '', notes: '', nextTitle: '', file: '', paused: false, timer: { running: false, startedAt: 0, acc: 0 } },
       obs: {},
       twitch: {},
+      youtube: {},
+      kick: {},
       camera: { active: false, error: '', label: '', devices: [] },
       displays: [],
       prompter: { kind: 'none', display: null },
@@ -142,6 +148,8 @@ class Glanceline extends EventEmitter {
       mics: [],
     };
     this.twitch = new TwitchChat(() => this.settings);
+    this.youtube = new YouTubeChat(() => this.settings);
+    this.kick = new KickChat(() => this.settings);
     this.obs = new ObsClient(() => this.settings);
     this.ppt = new PowerPointWatcher();
     this.voice = new VoiceEngine({ dataDir });
@@ -178,9 +186,24 @@ class Glanceline extends EventEmitter {
     this.twitch.on('status', (st) => { this.live.twitch = st; this.touch(); });
     this.twitch.on('message', (m) => this._chat(m));
     this.twitch.on('clear', (c) => this._chatClear(c));
+    for (const name of ['youtube', 'kick']) {
+      this[name].on('status', (st) => { this.live[name] = st; this.touch(); });
+      this[name].on('message', (m) => this._chat(m));
+      this[name].on('clear', (c) => this._chatClear(c));
+    }
     this.obs.on('status', (st) => {
       const prevScene = this.live.obs.scene;
+      const wasStreaming = Boolean(this.live.obs.streaming);
       this.live.obs = st;
+      // Show-Timer an den Stream koppeln
+      if (this.settings.timers.start === 'stream' && st.connected && Boolean(st.streaming) !== wasStreaming) {
+        if (st.streaming) {
+          Object.assign(this.live.show, { running: true, startedAt: Date.now(), acc: 0 });
+          this.live.section = null;
+        } else {
+          this._showPause();
+        }
+      }
       // Szenenwechsel in OBS schaltet den passenden Modus
       if (st.connected && st.scene && st.scene !== prevScene) {
         const mode = this.settings.obsAuto.sceneModes[st.scene];
@@ -206,6 +229,8 @@ class Glanceline extends EventEmitter {
     await this._listen();
 
     this.twitch.start();
+    this.youtube.start();
+    this.kick.start();
     this.obs.start();
     this.ppt.start();
     this._syncVoice();
@@ -217,6 +242,8 @@ class Glanceline extends EventEmitter {
   stop() {
     clearInterval(this.heartbeat);
     this.twitch.stop();
+    this.youtube.stop();
+    this.kick.stop();
     this.obs.stop();
     this.ppt.stop();
     this.voice.stop();
@@ -469,6 +496,23 @@ class Glanceline extends EventEmitter {
     this.broadcast('cmd', cmd, (c) => c.role === 'main');
   }
 
+  // ---------- Show-Timer ----------
+
+  _showElapsed() {
+    const sh = this.live.show;
+    return sh.acc + (sh.running ? Date.now() - sh.startedAt : 0);
+  }
+
+  _showStart() {
+    const sh = this.live.show;
+    if (!sh.running) Object.assign(sh, { running: true, startedAt: Date.now() });
+  }
+
+  _showPause() {
+    const sh = this.live.show;
+    if (sh.running) Object.assign(sh, { running: false, acc: sh.acc + Date.now() - sh.startedAt });
+  }
+
   // ---------- Chat ----------
 
   _chat(m) {
@@ -478,7 +522,8 @@ class Glanceline extends EventEmitter {
   }
 
   _chatClear(c) {
-    if (c.all) this.history = [];
+    if (c.all && c.platform) this.history = this.history.filter((m) => (m.platform || 'twitch') !== c.platform);
+    else if (c.all) this.history = [];
     else if (c.userId) this.history = this.history.filter((m) => !(m.kind === 'msg' && m.user.id === c.userId));
     else if (c.msgId) this.history = this.history.filter((m) => m.id !== c.msgId);
     this.broadcast('chatclear', c, (cl) => cl.role !== 'panel');
@@ -500,6 +545,15 @@ class Glanceline extends EventEmitter {
       ev('Goldcoin', 'sub', '★', 'ev.resub', { name: 'Goldcoin', n: 12, plan: ' (Tier 1)' }, de ? 'Danke für alles! peepoDJ' : 'Thanks for everything! peepoDJ'),
       ev('7TV', 'emote', '✦', 'ev.emoteAdded', { actor: 'NightOwl', emote: 'catKISS' }, 'catKISS'),
     ];
+    const c = this.settings.chat;
+    const platforms = [c.channel && 'twitch', c.youtube && 'youtube', c.kick && 'kick'].filter(Boolean);
+    if (platforms.length > 1) {
+      samples.splice(2, 0, { ...msg(user('MapleSyrup', '', ['subscriber']), de ? 'Hallo von YouTube 👋' : 'Hello from YouTube 👋'), platform: 'youtube' });
+      samples.splice(5, 0, { ...msg(user('GreenLantern', '#53FC18', []), de ? 'Kick ist auch da LETSGO' : 'Kick is here too LETSGO'), platform: 'kick' });
+      samples.push({ ...ev('Patron', 'bits', '💲', 'ev.superchat', { name: 'Patron', amount: '€5.00' }, de ? 'Für den Drachen!' : 'For the dragon!'), platform: 'youtube' });
+      samples.forEach((m) => { if (!m.platform) m.platform = 'twitch'; });
+      for (const m of samples) if (!platforms.includes(m.platform)) m.platform = platforms[0];
+    }
     samples.forEach((m, i) => {
       setTimeout(() => this._chat({ ...m, id: `demo-${Date.now()}-${i}`, ts: Date.now() }), i * 450);
     });
@@ -634,6 +688,7 @@ class Glanceline extends EventEmitter {
         }
         if (L.mode !== 'script') this._setMode('script');
         L.script.playing = true;
+        if (s.timers.start === 'script') this._showStart();
         if (s.obsAuto.recordWithScript && L.obs.connected && !L.obs.recording) this.obs.request('StartRecord').catch(() => {});
         break;
       case 'script:pause':
@@ -642,6 +697,7 @@ class Glanceline extends EventEmitter {
       case 'script:restart':
         L.script.playing = false;
         L.script.pos = 0;
+        L.section = null;
         this.voice.seek(0);
         this._cmd({ cmd: 'seek', pos: 0 });
         break;
@@ -687,6 +743,15 @@ class Glanceline extends EventEmitter {
         else if (target === 'ppt') this.patchSettings({ ppt: { maxFontSize: s.ppt.maxFontSize + 4 * d, minFontSize: s.ppt.minFontSize + 2 * d } });
         break;
       }
+
+      case 'show:toggle':
+        if (L.show.running) this._showPause();
+        else this._showStart();
+        break;
+      case 'show:reset':
+        Object.assign(L.show, { acc: 0, startedAt: Date.now() });
+        L.section = null;
+        break;
 
       case 'ppt:timerReset':
         Object.assign(L.ppt.timer, { acc: 0, startedAt: Date.now() });
@@ -739,9 +804,14 @@ class Glanceline extends EventEmitter {
         break;
       case 'emotes:reload':
         this.twitch.reloadEmotes();
+        this.youtube.reloadEmotes();
+        this.kick.reloadEmotes();
         break;
       case 'twitch:reconnect':
+      case 'chat:reconnect':
         this.twitch.restart();
+        this.youtube.restart();
+        this.kick.restart();
         break;
       case 'obs:reconnect':
         this.obs.restart();
@@ -778,7 +848,7 @@ class Glanceline extends EventEmitter {
 
   patchSettings(patch) {
     if (!isObj(patch)) return;
-    const watched = ['clicker', 'chat.channel', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
+    const watched = ['clicker', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
     const snap = (k) => JSON.stringify(getPath(this.settings, k));
     const before = Object.fromEntries(watched.map((k) => [k, snap(k)]));
 
@@ -793,11 +863,22 @@ class Glanceline extends EventEmitter {
 
     const changed = (k) => before[k] !== snap(k);
     if (changed('chat.channel')) {
-      this.history = [];
-      this.broadcast('chatclear', { all: true }, (c) => c.role !== 'panel');
+      this._chatClear({ all: true, platform: 'twitch' });
       this.twitch.restart();
     } else if (changed('chat.providers')) {
       this.twitch.reloadEmotes();
+    }
+    if (changed('chat.youtube')) {
+      this._chatClear({ all: true, platform: 'youtube' });
+      this.youtube.restart();
+    } else if (changed('chat.providers')) {
+      this.youtube.reloadEmotes();
+    }
+    if (changed('chat.kick')) {
+      this._chatClear({ all: true, platform: 'kick' });
+      this.kick.restart();
+    } else if (changed('chat.providers')) {
+      this.kick.reloadEmotes();
     }
     if (changed('obs')) this.obs.restart();
     if (changed('hotkeys') || changed('clicker')) this.emit('hotkeys');
@@ -844,6 +925,7 @@ class Glanceline extends EventEmitter {
         return { ok: true };
       }
       case 'activate': {
+        this.live.section = null;
         if (!find(b.id)) return { ok: false, error: 'script not found' };
         if (sc.activeId !== b.id) {
           sc.activeId = b.id;
@@ -880,7 +962,20 @@ class Glanceline extends EventEmitter {
       }
     } else if (b.kind === 'section') {
       if (L.script.playing && b.title) this._chapter(String(b.title));
-      return;
+      if (L.insert || !Number.isInteger(b.index)) return;
+      // Zeitplan: Startpunkt merken, sobald das Skript (erneut) zu laufen beginnt
+      const id = this.store.scripts.activeId;
+      const at = this._showElapsed();
+      const prev = L.section && L.section.id === id ? L.section : null;
+      const startOver = !prev || b.index < prev.baseIndex;
+      L.section = {
+        id,
+        index: b.index,
+        title: String(b.title || ''),
+        at,
+        base: startOver ? at : prev.base,
+        baseIndex: startOver ? b.index : prev.baseIndex,
+      };
     } else if (b.kind === 'voice-seek') {
       if (Number.isFinite(b.pos)) this.voice.seek(b.pos);
       return;

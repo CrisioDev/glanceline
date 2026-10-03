@@ -34,6 +34,8 @@ const DEFAULT_HOTKEYS = Object.freeze({
   'insert:4': '',
   'director:clear': '',
   'script:reverse': '',
+  'show:toggle': 'Ctrl+Alt+num0',
+  'show:reset': '',
 });
 
 const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
@@ -74,6 +76,8 @@ function defaultSettings() {
     },
     chat: {
       channel: '',
+      youtube: '', // @Handle, Kanal- oder Video-Link
+      kick: '', // Kanalname
       fontSize: 34,
       emoteScale: 1.5,
       maxMessages: 40,
@@ -92,6 +96,8 @@ function defaultSettings() {
     clicker: { enabled: false, forward: 'PageDown', back: 'PageUp', toggle: 'B', step: 'line' },
     director: { seconds: 10, presets: de ? ['Noch 2 Minuten', 'Langsamer', 'Lauter bitte', 'Werbepause!'] : ['2 minutes left', 'Slow down', 'Speak up', 'Ad break!'] },
     inserts: { 1: '', 2: '', 3: '', 4: '' }, // Skript-IDs für Einschübe per Hotkey
+    // Show-Timer: Laufzeit oder Countdown in der Statusleiste; startet von Hand, mit dem Skript oder mit dem Stream
+    timers: { show: false, minutes: 0, start: 'script', warn: 2 },
     voice: { enabled: false, lang: 'auto', micLabel: '', dimRead: true },
     ppt: { autoSwitch: true, maxFontSize: 54, minFontSize: 24, showNext: true, showTimer: true },
     obs: { host: '127.0.0.1', port: 4455, password: '' },
@@ -124,6 +130,8 @@ const RANGES = {
   'display.crossSize': [16, 300, true],
   'display.crossOpacity': [0.1, 1],
   'script.margin': [0, 0.45],
+  'timers.minutes': [0, 600, true],
+  'timers.warn': [0, 60, true],
   'director.seconds': [3, 300, true],
 };
 
@@ -157,11 +165,14 @@ function clampRanges(s) {
   if (s.ppt.minFontSize > s.ppt.maxFontSize) s.ppt.minFontSize = s.ppt.maxFontSize;
   s.chat.channel = s.chat.channel.trim().toLowerCase().replace(/^#/, '');
   s.chat.hideBots = s.chat.hideBots.map((b) => b.toLowerCase());
+  s.chat.youtube = String(s.chat.youtube || '').trim();
+  s.chat.kick = String(s.chat.kick || '').trim();
   if (!s.general.token) s.general.token = newToken();
   if (s.general.language !== 'auto' && !LANGUAGES.includes(s.general.language)) s.general.language = 'auto';
   if (!['auto', 'de', 'en', 'fr', 'es'].includes(s.voice.lang)) s.voice.lang = 'auto';
   if (!['left', 'center'].includes(s.script.align)) s.script.align = 'left';
   if (!['line', 'page'].includes(s.clicker.step)) s.clicker.step = 'line';
+  if (!['manual', 'script', 'stream'].includes(s.timers.start)) s.timers.start = 'script';
   for (const [scene, mode] of Object.entries(s.obsAuto.sceneModes)) if (!MODES.includes(mode)) delete s.obsAuto.sceneModes[scene];
 }
 

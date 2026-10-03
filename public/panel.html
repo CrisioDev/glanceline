@@ -190,6 +190,16 @@
             <button class="link" data-goto="settings" data-anchor="sec-camera"><i data-icon="gear"></i><span data-i18n="camera.sourceLink"></span></button>
           </div>
 
+          <div class="card show-card">
+            <h3 class="sub first" data-i18n="show.title"></h3>
+            <div class="timer-row">
+              <div class="big-time" id="showTime">0:00</div>
+              <button class="btn" data-action="show:toggle" id="showToggle"><i data-icon="play"></i><span></span></button>
+              <button class="btn" data-action="show:reset"><i data-icon="restart"></i><span data-i18n="ppt.reset"></span></button>
+            </div>
+            <div class="show-detail" id="showDetail"></div>
+          </div>
+
           <!-- Verbindungen -->
           <div class="card director-card">
             <h3 class="sub first" data-i18n="director.title"></h3>
@@ -237,6 +247,7 @@
               <dt data-i18n="scripts.fmt.italic"></dt><dd data-i18n="scripts.fmt.italicDesc"></dd>
               <dt data-i18n="scripts.fmt.mark"></dt><dd data-i18n="scripts.fmt.markDesc"></dd>
               <dt data-i18n="scripts.fmt.cue"></dt><dd data-i18n="scripts.fmt.cueDesc"></dd>
+              <dt data-i18n="scripts.fmt.target"></dt><dd data-i18n="scripts.fmt.targetDesc"></dd>
               <dt>---</dt><dd data-i18n="scripts.fmt.ruleDesc"></dd>
             </dl>
           </details>
@@ -272,8 +283,18 @@
     <div class="field">
       <label for="setupChannel" data-i18n="setup.channel"></label>
       <input type="text" id="setupChannel" data-i18n-placeholder="setup.channelPlaceholder" autocomplete="off" spellcheck="false">
-      <small class="hint" data-i18n="setup.channelHint"></small>
     </div>
+    <div class="field-pair">
+      <div class="field">
+        <label for="setupYoutube" data-i18n="setup.youtube"></label>
+        <input type="text" id="setupYoutube" placeholder="@handle" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="setupKick" data-i18n="setup.kick"></label>
+        <input type="text" id="setupKick" data-i18n-placeholder="setup.channelPlaceholder" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <small class="hint setup-hint" data-i18n="setup.channelHint"></small>
     <h3 class="sub" data-i18n="setup.checks"></h3>
     <ul class="conn-list" id="setupChecks"></ul>
     <label class="switch-row" id="setupAutostartRow"><span class="lbl"><span data-i18n="settings.autostart"></span><small class="hint" data-i18n="settings.autostartHint"></small></span><span class="switch"><input type="checkbox" data-setting="general.autostart"><span class="knob"></span></span></label>

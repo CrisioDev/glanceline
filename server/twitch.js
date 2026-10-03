@@ -3,6 +3,7 @@ const { EventEmitter } = require('events');
 const crypto = require('crypto');
 const { loadEmotes, buildMap, countsOf, fromSevenTv, fetchSevenTvEmote } = require('./emotes');
 const { SevenTvEvents } = require('./seventv-events');
+const { TokenBuilder } = require('./chat-tokens');
 
 // Anonymer Lesezugriff auf den Twitch-Chat (justinfan) – kein Login, kein Token nötig.
 const IRC_URL = 'wss://irc-ws.chat.twitch.tv:443';
@@ -10,6 +11,9 @@ const TAG_ESCAPES = { s: ' ', ':': ';', '\\': '\\', r: '\r', n: '\n' };
 const BADGES = ['broadcaster', 'moderator', 'vip', 'subscriber', 'founder'];
 const TIERS = { Prime: 'Prime', 1000: 'Tier 1', 2000: 'Tier 2', 3000: 'Tier 3' };
 const EMOTE_REFRESH_MS = 10 * 60 * 1000;
+const VIEWERS_MS = 60 * 1000;
+// Öffentliche Client-ID des Twitch-Webplayers – nur für die Zuschauerzahl, ohne Login
+const GQL_CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
 
 const unescapeTag = (v) => v.replace(/\\(.?)/g, (_, c) => TAG_ESCAPES[c] ?? c);
 
@@ -70,6 +74,7 @@ class TwitchChat extends EventEmitter {
       emoteErrors: [],
       emotesLoadedAt: 0,
       seventvLive: { connected: false, error: '', setId: '' },
+      viewers: null, // null = offline oder unbekannt
     };
 
     this.stvEvents = new SevenTvEvents();
@@ -92,6 +97,24 @@ class TwitchChat extends EventEmitter {
       if (idle > 6 * 60 * 1000) this.restart();
       else if (idle > 4 * 60 * 1000) this.ws.send('PING :glanceline');
     }, 30 * 1000);
+    this.viewerTimer = setInterval(() => this._viewers(), VIEWERS_MS);
+  }
+
+  // Zuschauerzahl über die öffentliche GraphQL-Schnittstelle (inoffiziell – fällt sie aus, bleibt die Zahl leer)
+  async _viewers() {
+    if (!this.channel || !this.status.joined) return;
+    try {
+      const res = await fetch('https://gql.twitch.tv/gql', {
+        method: 'POST',
+        headers: { 'Client-Id': GQL_CLIENT_ID, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'query($l:String!){user(login:$l){stream{viewersCount}}}', variables: { l: this.channel } }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const j = await res.json();
+      const st = j && j.data && j.data.user && j.data.user.stream;
+      const viewers = st ? Number(st.viewersCount) || 0 : null;
+      if (viewers !== this.status.viewers) this._set({ viewers });
+    } catch { /* egal – nächster Versuch in einer Minute */ }
   }
 
   stop() {
@@ -100,6 +123,7 @@ class TwitchChat extends EventEmitter {
     clearTimeout(this.stvResyncTimer);
     clearInterval(this.emoteTimer);
     clearInterval(this.watchdog);
+    clearInterval(this.viewerTimer);
     clearTimeout(this.reconnectTimer);
     clearTimeout(this.joinTimer);
     const ws = this.ws;
@@ -132,7 +156,7 @@ class TwitchChat extends EventEmitter {
       this.stvEvents.watch([]);
     }
     this.channel = channel;
-    this._set({ connected: false, joined: false, channel, roomId: this.roomId, error: channel ? '' : 'err.twitch.noChannel', errorVars: null });
+    this._set({ connected: false, joined: false, channel, roomId: this.roomId, viewers: null, error: channel ? '' : 'err.twitch.noChannel', errorVars: null });
     if (!channel || this.stopped) return;
 
     let ws;
@@ -282,6 +306,7 @@ class TwitchChat extends EventEmitter {
     if (!this.getSettings().chat.emoteNotices) return;
     this.emit('message', {
       id: crypto.randomUUID(),
+      platform: 'twitch',
       kind: 'event',
       ts: Date.now(),
       user: { id: '', login: '', name: '7TV', color: '', badges: [] },
@@ -308,6 +333,7 @@ class TwitchChat extends EventEmitter {
         this.roomId = id;
         this._set({ joined: true, roomId: id, error: '', errorVars: null });
         if (changed || !this.emotes.size) this.reloadEmotes();
+        this._viewers();
         break;
       }
       case 'PRIVMSG':
@@ -317,7 +343,7 @@ class TwitchChat extends EventEmitter {
         this._onUsernotice(m);
         break;
       case 'CLEARCHAT':
-        this.emit('clear', m.tags['target-user-id'] ? { userId: m.tags['target-user-id'] } : { all: true });
+        this.emit('clear', m.tags['target-user-id'] ? { userId: m.tags['target-user-id'] } : { all: true, platform: 'twitch' });
         break;
       case 'CLEARMSG':
         if (m.tags['target-msg-id']) this.emit('clear', { msgId: m.tags['target-msg-id'] });
@@ -369,6 +395,7 @@ class TwitchChat extends EventEmitter {
     const bits = Number(t.bits) || 0;
     const msg = {
       id: t.id || crypto.randomUUID(),
+      platform: 'twitch',
       kind: bits ? 'event' : 'msg',
       ts: Number(t['tmi-sent-ts']) || Date.now(),
       user,
@@ -447,6 +474,7 @@ class TwitchChat extends EventEmitter {
     const text = m.params[1] || '';
     this.emit('message', {
       id: t.id || crypto.randomUUID(),
+      platform: 'twitch',
       kind: 'event',
       ts: Number(t['tmi-sent-ts']) || Date.now(),
       user: this._user(t, t.login),
@@ -472,51 +500,16 @@ class TwitchChat extends EventEmitter {
       ranges.sort((x, y) => x.a - y.a);
     }
 
-    const tokens = [];
-    const pushText = (v) => {
-      const last = tokens[tokens.length - 1];
-      if (last && last.t === 'text') last.v += v;
-      else tokens.push({ t: 'text', v });
-    };
-    const pushWords = (segment) => {
-      for (const part of segment.split(/(\s+)/)) {
-        if (!part) continue;
-        if (/^\s+$/.test(part)) {
-          pushText(' ');
-          continue;
-        }
-        const em = this.emotes.get(part);
-        if (em) {
-          if (em.zw) {
-            const last = tokens[tokens.length - 1];
-            const base = last && last.t === 'text' && last.v === ' ' ? tokens[tokens.length - 2] : last;
-            if (base && base.t === 'emote') {
-              if (base !== last) tokens.pop();
-              (base.zw || (base.zw = [])).push({ n: em.n, u: em.u });
-              continue;
-            }
-          }
-          tokens.push({ t: 'emote', n: em.n, p: em.p, u: em.u, r: em.r });
-          continue;
-        }
-        if (/^@\w/.test(part)) {
-          const target = part.slice(1).toLowerCase().replace(/\W+$/, '');
-          tokens.push({ t: 'mention', v: part, me: target === this.channel });
-          continue;
-        }
-        pushText(part);
-      }
-    };
-
+    const tb = new TokenBuilder(this.emotes, this.channel);
     let i = 0;
     for (const r of ranges) {
       if (r.a < i) continue;
-      if (r.a > i) pushWords(cps.slice(i, r.a).join(''));
-      tokens.push(twitchEmote(r.id, cps.slice(r.a, r.b + 1).join('')));
+      if (r.a > i) tb.words(cps.slice(i, r.a).join(''));
+      tb.push(twitchEmote(r.id, cps.slice(r.a, r.b + 1).join('')));
       i = r.b + 1;
     }
-    if (i < cps.length) pushWords(cps.slice(i).join(''));
-    return tokens;
+    if (i < cps.length) tb.words(cps.slice(i).join(''));
+    return tb.tokens;
   }
 }
 
