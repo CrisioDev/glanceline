@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
-const { Store, DEFAULT_HOTKEYS, newId, newToken } = require('./store');
+const { Store, DEFAULT_HOTKEYS, PROFILE_KEYS, newId, newToken } = require('./store');
 const { systemFonts } = require('./fonts');
 const { TwitchChat } = require('./twitch');
 const { YouTubeChat } = require('./youtube');
@@ -479,7 +479,7 @@ class Glanceline extends EventEmitter {
       scripts: this.store.scripts,
       live: this._liveOut(),
       history: this.history,
-      defaults: { hotkeys: DEFAULT_HOTKEYS },
+      defaults: { hotkeys: DEFAULT_HOTKEYS, profileKeys: PROFILE_KEYS },
     };
   }
 
@@ -638,7 +638,42 @@ class Glanceline extends EventEmitter {
     this.live.prevMode = null;
     this.live.blackout = false;
     this._setPassthrough(false); // Moduswechsel holt den Prompter zurück
-    if (changed) this.emit('mode', mode);
+    if (changed) {
+      const pid = this._profileFor(mode);
+      if (pid && pid !== this.settings.profiles.active) this._applyProfile(pid);
+      this.emit('mode', mode);
+    }
+  }
+
+  // ---------- Profile ----------
+
+  // Profil für einen Modus: im Skript-Modus zuerst das Profil des Skripts, sonst die Zuordnung je Modus
+  _profileFor(mode) {
+    if (this.live.insert) return '';
+    const p = this.settings.profiles;
+    if (mode === 'script') {
+      const it = this.store.scripts.items.find((x) => x.id === this.store.scripts.activeId);
+      if (it && it.profile && p.list.some((x) => x.id === it.profile)) return it.profile;
+    }
+    return p.byMode[mode] || '';
+  }
+
+  _profileValues() {
+    const values = {};
+    for (const k of PROFILE_KEYS) {
+      const keys = k.split('.');
+      const last = keys.pop();
+      const obj = keys.reduce((o, key) => (o[key] = o[key] || {}), values);
+      obj[last] = getPath(this.settings, k);
+    }
+    return values;
+  }
+
+  _applyProfile(id) {
+    const p = this.settings.profiles.list.find((x) => x.id === id);
+    if (!p) return { ok: false, error: 'profile not found' };
+    this.patchSettings({ ...JSON.parse(JSON.stringify(p.values)), profiles: { active: id } });
+    return { ok: true };
   }
 
   _setPassthrough(on) {
@@ -811,6 +846,46 @@ class Glanceline extends EventEmitter {
         break;
       }
 
+      case 'profile:save': {
+        const list = s.profiles.list;
+        const name = String(a.name || '').trim().slice(0, 40) || t(this.lang(), 'profiles.defaultName', { n: list.length + 1 });
+        const id = newId();
+        this.patchSettings({ profiles: { list: [...list, { id, name, values: this._profileValues() }], active: id } });
+        return { ok: true, id };
+      }
+      case 'profile:update': {
+        const id = a.id || s.profiles.active;
+        if (!s.profiles.list.some((x) => x.id === id)) return { ok: false, error: 'profile not found' };
+        this.patchSettings({ profiles: { list: s.profiles.list.map((x) => (x.id === id ? { ...x, values: this._profileValues() } : x)), active: id } });
+        break;
+      }
+      case 'profile:rename':
+        this.patchSettings({ profiles: { list: s.profiles.list.map((x) => (x.id === a.id ? { ...x, name: String(a.name || '') } : x)) } });
+        break;
+      case 'profile:delete':
+        this.patchSettings({ profiles: { list: s.profiles.list.filter((x) => x.id !== a.id) } });
+        for (const it of this.store.scripts.items) if (it.profile === a.id) delete it.profile;
+        break;
+      case 'profile:apply':
+        if (!a.id) {
+          this.patchSettings({ profiles: { active: '' } });
+          break;
+        }
+        return this._applyProfile(String(a.id));
+      case 'profile:1':
+      case 'profile:2':
+      case 'profile:3':
+      case 'profile:4': {
+        const p = s.profiles.list[Number(type.slice(8)) - 1];
+        return p ? this._applyProfile(p.id) : { ok: false, error: 'no profile in this slot' };
+      }
+      case 'profile:next': {
+        const list = s.profiles.list;
+        if (!list.length) return { ok: false, error: 'no profiles' };
+        const i = list.findIndex((x) => x.id === s.profiles.active);
+        return this._applyProfile(list[(i + 1) % list.length].id);
+      }
+
       case 'show:toggle':
         if (L.show.running) this._showPause();
         else this._showStart();
@@ -924,6 +999,11 @@ class Glanceline extends EventEmitter {
       this.settings.obsAuto.sceneModes = { ...patch.obsAuto.sceneModes };
       delete patch.obsAuto.sceneModes;
     }
+    // Profil-Zuordnung je Modus ebenfalls ersetzen
+    if (isObj(patch.profiles) && isObj(patch.profiles.byMode)) {
+      this.settings.profiles.byMode = { ...patch.profiles.byMode };
+      delete patch.profiles.byMode;
+    }
     deepAssign(this.settings, patch);
     this.store.sanitize();
     this.store.save('settings');
@@ -984,6 +1064,15 @@ class Glanceline extends EventEmitter {
         this._scriptsChanged();
         return { ok: true };
       }
+      case 'profile': {
+        // Profil eines Skripts festlegen (geht auch bei Skripten aus dem verknüpften Ordner)
+        const it = find(b.id);
+        if (!it) return { ok: false, error: 'script not found' };
+        if (b.profile && this.settings.profiles.list.some((x) => x.id === b.profile)) it.profile = String(b.profile);
+        else delete it.profile;
+        this._scriptsChanged();
+        return { ok: true };
+      }
       case 'delete': {
         if (find(b.id) && find(b.id).file) return { ok: false, error: 'linked to a file' };
         sc.items = sc.items.filter((x) => x.id !== b.id);
@@ -1000,6 +1089,9 @@ class Glanceline extends EventEmitter {
         if (sc.activeId !== b.id) {
           sc.activeId = b.id;
           this._resetScript();
+          // Skript mit eigenem Profil: im Skript-Modus gleich anwenden
+          const pid = this.live.mode === 'script' ? this._profileFor('script') : '';
+          if (pid && pid !== this.settings.profiles.active) this._applyProfile(pid);
         }
         this._scriptsChanged();
         return { ok: true };

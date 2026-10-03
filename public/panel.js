@@ -492,6 +492,7 @@
       ],
       extra: `<p class="hint" id="obsSettingsState"></p><h3 class="sub">${esc(t('obsAuto.scenes'))}</h3><p class="hint">${esc(t('obsAuto.scenesHint'))}</p><div id="sceneModes"></div>`,
     },
+    { id: 'sec-profiles', title: 'profiles.title', custom: 'profiles' },
     { id: 'sec-network', title: 'settings.sec.network', custom: 'network' },
     { id: 'sec-integrations', title: 'settings.sec.integrations', custom: 'integrations' },
     { id: 'sec-hotkeys', title: 'settings.sec.hotkeys', custom: 'hotkeys' },
@@ -502,6 +503,7 @@
     'script:toggle', 'script:slower', 'script:faster', 'view:back', 'view:forward',
     'script:prevSection', 'script:nextSection', 'script:restart', 'script:reverse', 'font:bigger', 'font:smaller', 'ppt:timerReset', 'voice:toggle',
     'passthrough', 'chat:pause', 'insert:1', 'insert:2', 'insert:3', 'insert:4', 'director:clear', 'show:toggle', 'show:reset',
+    'profile:next', 'profile:1', 'profile:2', 'profile:3', 'profile:4',
   ];
   const VOICE_LANGS = ['de', 'en', 'fr', 'es'];
 
@@ -539,6 +541,69 @@
       <h3 class="sub">${esc(t('net.dock'))}</h3>
       <p class="hint">${esc(t('net.dockHint'))}</p>
       <div class="url-row"><code id="dockUrl"></code><button class="btn icon sm" data-copy-from="dockUrl" title="${esc(t('common.copy'))}"><i data-icon="copy"></i></button></div>`;
+  }
+
+  function profilesHtml() {
+    return `<p class="lead">${esc(t('profiles.lead'))}</p>
+      <ul class="profile-list" id="profileList"></ul>
+      <div class="profile-new"><input type="text" id="profileName" maxlength="40" autocomplete="off" placeholder="${esc(t('profiles.namePlaceholder'))}"><button class="btn" id="profileSave"><i data-icon="plus"></i><span>${esc(t('profiles.save'))}</span></button></div>
+      <h3 class="sub">${esc(t('profiles.byMode'))}</h3>
+      <p class="hint">${esc(t('profiles.byModeHint'))}</p>
+      <div id="profileModes"></div>`;
+  }
+
+  // Weicht die aktuelle Einstellung vom aktiven Profil ab?
+  function profileDirty() {
+    const p = settings.profiles.list.find((x) => x.id === settings.profiles.active);
+    if (!p) return false;
+    return (defaults.profileKeys || []).some((k) => {
+      const v = getPath(p.values, k);
+      return v !== undefined && JSON.stringify(v) !== JSON.stringify(getPath(settings, k));
+    });
+  }
+
+  function renderProfiles() {
+    const P = settings.profiles;
+    const opts = (none) => [['', t(none)], ...P.list.map((x) => [x.id, x.name])];
+    const fill = (sel, list, value) => {
+      const sig = JSON.stringify([list, value]);
+      if (sel._sig === sig) return;
+      sel._sig = sig;
+      sel.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
+      sel.value = value;
+    };
+    // Live-Tab: schnell umschalten
+    $('#profileQuick').hidden = !P.list.length;
+    fill($('#profileSelect'), opts('profiles.noneActive'), P.active);
+    const dirty = profileDirty();
+    setText($('#profileDirty'), dirty ? t('profiles.changed') : '');
+    // Skript-Editor
+    const it = currentScript();
+    $('#scriptProfileRow').hidden = !P.list.length || !it;
+    if (it) fill($('#scriptProfile'), opts('profiles.none'), it.profile || '');
+    // Einstellungen
+    const list = $('#profileList');
+    if (!list) return;
+    const sig = JSON.stringify([P.list.map((x) => [x.id, x.name]), P.active, dirty, lang]);
+    if (list._sig !== sig && !list.contains(document.activeElement)) {
+      list._sig = sig;
+      list.innerHTML = P.list.length
+        ? P.list
+            .map(
+              (x) => `<li class="${x.id === P.active ? 'active' : ''}"><input type="text" maxlength="40" value="${esc(x.name)}" data-profile-name="${esc(x.id)}" aria-label="${esc(t('profiles.rename'))}">${x.id === P.active ? `<span class="tag">${esc(dirty ? t('profiles.changed') : t('profiles.active'))}</span>` : ''}<button class="btn sm" data-profile-apply="${esc(x.id)}">${esc(t('profiles.apply'))}</button><button class="btn sm" data-profile-update="${esc(x.id)}" title="${esc(t('profiles.updateHint'))}">${esc(t('profiles.update'))}</button><button class="btn icon sm" data-profile-delete="${esc(x.id)}" title="${esc(t('profiles.delete'))}"><i data-icon="x"></i></button></li>`,
+            )
+            .join('')
+        : `<li class="hint">${esc(t('profiles.empty'))}</li>`;
+      hydrateIcons(list);
+    }
+    const modes = $('#profileModes');
+    const msig = JSON.stringify([P.list.map((x) => [x.id, x.name]), P.byMode, lang]);
+    if (modes._sig !== msig) {
+      modes._sig = msig;
+      modes.innerHTML = `<table class="scene-table"><tbody>${MODE_OPTIONS()
+        .map(([m, label]) => `<tr><td>${esc(label)}</td><td><select data-profile-mode="${m}">${opts('profiles.none').map(([v, l]) => `<option value="${esc(v)}"${(P.byMode[m] || '') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></td></tr>`)
+        .join('')}</tbody></table>`;
+    }
   }
 
   function integrationsHtml() {
@@ -581,6 +646,7 @@
       if (sec.custom === 'network') body = networkHtml();
       else if (sec.custom === 'hotkeys') body = hotkeysHtml();
       else if (sec.custom === 'integrations') body = integrationsHtml();
+      else if (sec.custom === 'profiles') body = profilesHtml();
       else body = (sec.lead ? `<p class="lead">${esc(t(sec.lead))}</p>` : '') + sec.fields.map(fieldHtml).join('');
       return `<div class="card" id="${sec.id}"><div class="card-head"><h2>${esc(t(sec.title))}</h2></div>${body}${sec.extra || ''}</div>`;
     }).join('');
@@ -863,6 +929,7 @@
     renderShow();
     renderFolder();
     renderIntegrations();
+    renderProfiles();
     renderConn();
     renderNetwork();
     renderPhone();
@@ -1455,6 +1522,31 @@
     $('#folderOpen').hidden = !f.folder;
     $('#folderClear').hidden = !f.folder;
   }
+
+  // ---------- Profile
+  $('#profileSelect').addEventListener('change', (e) => S.action('profile:apply', { id: e.target.value }).catch(() => {}));
+  $('#scriptProfile').addEventListener('change', (e) => {
+    if (ed.id) S.api('/api/scripts', { op: 'profile', id: ed.id, profile: e.target.value }).catch(() => note(t('note.saveFailed')));
+  });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'profileSave') {
+      const input = $('#profileName');
+      S.action('profile:save', { name: input.value }).then(() => { input.value = ''; note(t('profiles.saved')); }).catch(() => note(t('note.saveFailed')));
+    } else if (b.dataset.profileApply) S.action('profile:apply', { id: b.dataset.profileApply }).catch(() => {});
+    else if (b.dataset.profileUpdate) S.action('profile:update', { id: b.dataset.profileUpdate }).then(() => note(t('profiles.updated'))).catch(() => {});
+    else if (b.dataset.profileDelete) S.action('profile:delete', { id: b.dataset.profileDelete }).catch(() => {});
+  });
+  document.addEventListener('change', (e) => {
+    const n = e.target;
+    if (n.dataset && n.dataset.profileName) S.action('profile:rename', { id: n.dataset.profileName, name: n.value }).catch(() => {});
+    else if (n.dataset && n.dataset.profileMode) {
+      const map = {};
+      $$('select[data-profile-mode]').forEach((sel) => { if (sel.value) map[sel.dataset.profileMode] = sel.value; });
+      sendSetting('profiles.byMode', map);
+    }
+  });
 
   $('#deleteScript').addEventListener('click', async () => {
     const b = $('#deleteScript');

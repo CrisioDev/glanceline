@@ -399,6 +399,16 @@ input[type="color"] { width: 54px; height: 36px; padding: 3px; border-radius: 10
 .director-state:empty { display: none; }
 .director-state b { color: var(--accent); }
 .director-card { margin-top: 16px; }
+.quick-profile, .script-profile { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.quick-profile[hidden], .script-profile[hidden] { display: none; }
+.quick-profile em { font-style: normal; font-weight: 500; font-size: 12px; color: #b26a00; }
+.profile-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.profile-list li { display: flex; align-items: center; gap: 8px; }
+.profile-list li input { flex: 1; min-width: 0; }
+.profile-list li.active input { border-color: var(--accent); }
+.profile-list .tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); text-transform: uppercase; }
+.profile-new { display: flex; gap: 8px; margin-top: 12px; }
+.profile-new input { flex: 1; }
 .btn-row.tight { gap: 6px; margin: 0; }
 .folder-box { margin-top: 14px; padding-top: 4px; border-top: 1px solid var(--line); }
 .folder-box .hint { margin: 4px 0 8px; word-break: break-all; }
