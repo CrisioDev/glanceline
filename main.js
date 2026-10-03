@@ -82,6 +82,10 @@ async function boot() {
     const r = await dialog.showOpenDialog(parent, { title: t('library.pickTitle'), properties: ['openDirectory'], defaultPath: core.settings.library.folder || app.getPath('documents') });
     if (!r.canceled && r.filePaths[0]) core.patchSettings({ library: { folder: r.filePaths[0] } });
   });
+  // Twitch-Anmeldung: nur die Bestätigungsseite von Twitch öffnen
+  core.on('openExternal', (url) => {
+    if (/^https:\/\/(www\.)?twitch\.tv\/activate/.test(url)) shell.openExternal(url);
+  });
   core.on('openPath', (p) => {
     shell.openPath(p).then((err) => err && console.warn('[open]', err));
   });

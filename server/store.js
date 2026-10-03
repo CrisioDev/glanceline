@@ -93,6 +93,7 @@ function defaultSettings() {
       eventToasts: true,
       emoteNotices: true,
       hideCommands: true,
+      showFollows: true,
       hideBots: ['nightbot', 'streamelements', 'streamlabs', 'moobot', 'fossabot', 'wizebot', 'sery_bot', 'soundalerts', 'kofistreambot'],
       highlightWords: [],
       fadeAfter: 0,
@@ -110,6 +111,7 @@ function defaultSettings() {
     profiles: { list: [], active: '', byMode: {} },
     // MIDI-Controller: Taste/Regler („note:1:60“, „cc:1:7“, „pc:1:3“) → Aktion
     midi: { enabled: false, map: {} },
+    twitch: { clientId: '' }, // eigene Twitch-Client-ID (nur nötig, falls keine eingebaut ist)
     voice: { enabled: false, lang: 'auto', micLabel: '', dimRead: true },
     ppt: { autoSwitch: true, maxFontSize: 54, minFontSize: 24, showNext: true, showTimer: true },
     obs: { host: '127.0.0.1', port: 4455, password: '' },
@@ -325,7 +327,7 @@ function writeAtomic(file, data) {
 class Store {
   constructor(dir) {
     fs.mkdirSync(dir, { recursive: true });
-    this.files = { settings: path.join(dir, 'settings.json'), scripts: path.join(dir, 'scripts.json') };
+    this.files = { settings: path.join(dir, 'settings.json'), scripts: path.join(dir, 'scripts.json'), auth: path.join(dir, 'twitch-auth.json') };
     this.timers = {};
 
     const loaded = readJson(this.files.settings);
@@ -358,6 +360,21 @@ class Store {
       writeAtomic(this.files[kind], this[kind]);
     } catch (e) {
       console.error(`[store] could not save ${kind}:`, e.message);
+    }
+  }
+
+  // Twitch-Anmeldung liegt getrennt von den Einstellungen – sie geht nie an Panel, Handy oder API-Clients
+  loadAuth() {
+    const a = readJson(this.files.auth);
+    return isObj(a) && a.accessToken && a.refreshToken && a.userId ? a : null;
+  }
+
+  saveAuth(auth) {
+    try {
+      if (auth) writeAtomic(this.files.auth, auth);
+      else if (fs.existsSync(this.files.auth)) fs.unlinkSync(this.files.auth);
+    } catch (e) {
+      console.error('[store] could not save twitch login:', e.message);
     }
   }
 

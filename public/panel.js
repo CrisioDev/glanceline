@@ -400,10 +400,12 @@
         { k: 'chat.showEvents', l: 'settings.showEvents', type: 'toggle' },
         { k: 'chat.eventToasts', l: 'settings.eventToasts', type: 'toggle', h: 'settings.eventToastsHint' },
         { k: 'chat.hideCommands', l: 'settings.hideCommands', type: 'toggle' },
+        { k: 'chat.showFollows', l: 'settings.showFollows', type: 'toggle', h: 'settings.showFollowsHint' },
         { k: 'chat.hideBots', l: 'settings.hideBots', type: 'list', h: 'settings.hideBotsHint' },
         { k: 'chat.highlightWords', l: 'settings.highlightWords', type: 'list', h: 'settings.highlightWordsHint' },
         { k: 'chat.fadeAfter', l: 'settings.fadeAfter', type: 'number', min: 0, max: 3600, unit: t('settings.fadeAfterUnit') },
       ],
+      extra: `<h3 class="sub">${esc(t('eventsub.title'))}</h3><p class="hint">${esc(t('eventsub.lead'))}</p><div id="eventsubBox"></div>${fieldHtml({ k: 'twitch.clientId', l: 'eventsub.clientId', type: 'text', h: 'eventsub.clientIdHint', placeholder: '' })}`,
     },
     {
       id: 'sec-timers',
@@ -645,6 +647,29 @@
     $('#midiLearn').classList.toggle('armed', learning);
     $('#midiLearn').disabled = !settings.midi.enabled;
     setText($('#midiLearnState'), learning ? t(m.learn === 'script:speed' ? 'midi.learningSpeed' : 'midi.learning', { action: label(m.learn) }) : m.last && Date.now() - m.last.at < 4000 ? t('midi.lastSeen', { key: midiKeyLabel(m.last.key) }) : '');
+  }
+
+  // Optionale Twitch-Anmeldung (EventSub)
+  function renderEventSub() {
+    const box = $('#eventsubBox');
+    if (!box) return;
+    const es = live.eventsub || {};
+    let html;
+    if (es.state === 'pending') {
+      html = `<p class="es-code">${esc(t('eventsub.pending'))} <b>${esc(es.userCode)}</b></p><div class="btn-row"><a class="btn sm" href="${esc(es.verificationUri)}" target="_blank" rel="noopener">${esc(t('eventsub.open'))}</a><button class="btn sm" data-action="twitch:loginCancel">${esc(t('eventsub.cancel'))}</button></div>`;
+    } else if (es.login && (es.state === 'connected' || es.state === 'connecting')) {
+      const other = settings.chat.channel && settings.chat.channel !== es.login ? `<p class="hint warn">${esc(t('eventsub.otherChannel', { login: es.login }))}</p>` : '';
+      const info = es.state === 'connected' ? t('eventsub.connected', { login: es.login, n: es.subscribed }) : t('eventsub.connecting', { login: es.login });
+      html = `<p class="hint">${esc(info)}</p>${es.error ? `<p class="hint warn">${esc(t(es.error, es.errorVars))}</p>` : ''}${other}<div class="btn-row"><button class="btn sm" data-action="twitch:logout">${esc(t('eventsub.disconnect'))}</button></div>`;
+    } else {
+      const err = es.error ? `<p class="hint warn">${esc(t(es.error, es.errorVars))}</p>` : '';
+      html = `${err}<div class="btn-row"><button class="btn sm" data-action="twitch:login"${es.hasClientId ? '' : ' disabled'}><i data-icon="plug"></i><span>${esc(t('eventsub.connect'))}</span></button></div>${es.hasClientId ? '' : `<p class="hint">${esc(t('eventsub.needsClientId'))}</p>`}`;
+    }
+    if (box._html !== html) {
+      box._html = html;
+      box.innerHTML = html;
+      hydrateIcons(box);
+    }
   }
 
   function integrationsHtml() {
@@ -973,6 +998,7 @@
     renderIntegrations();
     renderProfiles();
     renderMidi();
+    renderEventSub();
     renderConn();
     renderNetwork();
     renderPhone();
