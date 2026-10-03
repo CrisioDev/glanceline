@@ -41,6 +41,7 @@ const DEFAULT_HOTKEYS = Object.freeze({
   'profile:2': '',
   'profile:3': '',
   'profile:4': '',
+  'prompter:power': '',
 });
 
 const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
@@ -55,6 +56,7 @@ function defaultSettings() {
     display: {
       target: 'auto', // 'auto', Bildschirm-ID oder 'virtual' (schwebendes Fenster)
       virtualOpacity: 0.9,
+      powerWithApp: false, // Prompter nur angemeldet, solange Glanceline läuft
       mirror: false,
       testWindow: true,
       statusBar: true,
@@ -106,7 +108,7 @@ function defaultSettings() {
     // Show-Timer: Laufzeit oder Countdown in der Statusleiste; startet von Hand, mit dem Skript oder mit dem Stream
     timers: { show: false, minutes: 0, start: 'script', warn: 2 },
     library: { folder: '' }, // Skript-Ordner, der live synchron gehalten wird
-    windowState: { virtual: null }, // Position des virtuellen Prompters
+    windowState: { virtual: null, standby: null }, // Position des virtuellen Prompters; abgemeldetes Prompter-Display
     // Profile: benannte Sätze von Darstellungs-Einstellungen, optional automatisch je Modus
     profiles: { list: [], active: '', byMode: {} },
     // MIDI-Controller: Taste/Regler („note:1:60“, „cc:1:7“, „pc:1:3“) → Aktion

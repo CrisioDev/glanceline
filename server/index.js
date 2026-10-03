@@ -153,6 +153,7 @@ class Glanceline extends EventEmitter {
       camera: { active: false, error: '', label: '', devices: [] },
       displays: [],
       prompter: { kind: 'none', display: null },
+      power: { supported: process.platform === 'win32', standby: false, busy: false, error: '' },
       hotkeys: { errors: [], suspended: false },
       clients: { main: 0, preview: 0, panel: 0 },
       lan: { enabled: false, port: this.port, urls: [] },
@@ -911,6 +912,10 @@ class Glanceline extends EventEmitter {
         }
         break;
       }
+      case 'prompter:power':
+        // Prompter-Display in Windows ab- bzw. anmelden (true = an, false = aus, ohne = umschalten)
+        if (!L.power.busy) this.emit('prompterPower', typeof a.on === 'boolean' ? a.on : undefined);
+        break;
       case 'library:pick':
         this.emit('pickFolder');
         break;
@@ -1316,6 +1321,11 @@ class Glanceline extends EventEmitter {
 
   setHotkeyErrors(errors) {
     this.live.hotkeys.errors = errors;
+    this.touch();
+  }
+
+  setPower(patch) {
+    Object.assign(this.live.power, patch);
     this.touch();
   }
 
