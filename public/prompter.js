@@ -70,6 +70,15 @@
     set('--dim', s.camera.dim);
     set('--plate', s.camera.plate);
     set('--text-opacity', s.camera.textOpacity);
+    set('--margin', s.script.margin);
+    set('--align', s.script.align === 'center' ? 'center' : 'start');
+    set('--cx', s.display.crossX);
+    set('--cy', s.display.crossY);
+    set('--cs', `${s.display.crossSize}px`);
+    set('--co', s.display.crossOpacity);
+    set('--dimmer', (1 - s.display.brightness).toFixed(2));
+    root.classList.toggle('hc', s.display.highContrast);
+    root.classList.toggle('crosshair', s.display.crosshair);
     root.classList.toggle('mirror', s.display.mirror);
     root.classList.toggle('no-status', !s.display.statusBar);
     root.classList.toggle('no-guide', !s.script.showGuide);
@@ -174,12 +183,16 @@
     if (m.highlight) div.classList.add('hl');
     if (m.action) div.classList.add('action');
     if (m.first) div.append(el('span', 'chip', t('p.new')));
+    else if (m.returning) div.append(el('span', 'chip back', t('p.returning')));
+    if (m.reward) div.append(el('span', 'chip reward', t('p.reward')));
+    if (m.shared) div.append(el('span', 'chip shared', '↔'));
     for (const b of m.user.badges || []) div.append(el('span', `badge b-${b}`, BADGE[b] || '•'));
     const color = readableColor(m.user.color, m.user.login);
     const name = el('span', 'name', m.user.name);
     name.style.color = color;
     div.append(name, el('span', 'sep', m.action ? ' ' : ': '));
     const text = el('span', 'text');
+    text.dir = 'auto'; // Rechts-nach-links-Nachrichten richtig darstellen
     if (m.action) text.style.color = color;
     text.append(tokensFrag(m.tokens));
     div.append(text);
@@ -210,22 +223,70 @@
     chatList.append(node);
     trimChat();
     const fade = settings.chat.fadeAfter;
-    if (fade > 0) {
+    if (fade > 0 && !chatHeld()) {
       const age = Date.now() - (m.ts || Date.now());
       const left = fade * 1000 - age;
       if (left <= 0) node.classList.add('gone');
       else setTimeout(() => node.classList.add('gone'), left);
     }
+  }
+
+  // Alle Nachrichten bleiben im Puffer – für Pause und Zurückspulen
+  const chatBuf = [];
+  const chatState = { offset: 0, held: false, pending: 0 };
+  const chatHeld = () => Boolean(live && live.chat && (live.chat.paused || live.chat.offset > 0));
+
+  function onChat(m) {
+    chatBuf.push(m);
+    if (chatBuf.length > 300) chatBuf.shift();
     const toastWorthy = m.kind === 'event' && m.event.type !== 'emote'; // Emote-Änderungen nur im Chat
-    if (!quiet && toastWorthy && live && live.mode !== 'chat' && !live.blackout && settings.chat.eventToasts) toast(m);
+    if (toastWorthy && live && live.mode !== 'chat' && !live.blackout && settings.chat.eventToasts) toast(m);
+    if (chatHeld()) {
+      chatState.pending++;
+      updateChatBadge();
+      return;
+    }
+    addMessage(m, false);
+  }
+
+  // Ausschnitt neu zeichnen, der „offset“ Nachrichten vor dem neuesten Stand endet
+  function renderChatWindow() {
+    chatList.replaceChildren();
+    const end = Math.max(0, chatBuf.length - chatState.offset);
+    for (const m of chatBuf.slice(Math.max(0, end - settings.chat.maxMessages), end)) addMessage(m, true);
+  }
+
+  function syncChatState() {
+    const c = (live && live.chat) || { paused: false, offset: 0 };
+    const held = c.paused || c.offset > 0;
+    if (c.offset !== chatState.offset || (chatState.held && !held)) {
+      chatState.offset = c.offset;
+      if (!held) chatState.pending = 0;
+      renderChatWindow();
+    }
+    chatState.held = held;
+    updateChatBadge();
+  }
+
+  function updateChatBadge() {
+    const badge = $('chatBadge');
+    let text = '';
+    if (chatState.held) {
+      text = chatState.offset > 0 ? `⏪ ${t('p.chatRewind', { n: chatState.offset })}` : `⏸ ${t('p.chatPaused')}`;
+      if (chatState.pending) text += ` · ${t('p.chatNew', { n: chatState.pending })}`;
+    }
+    setText(badge, text);
   }
 
   function renderHistory(history) {
-    chatList.replaceChildren();
-    for (const m of history || []) addMessage(m, true);
+    chatBuf.length = 0;
+    chatBuf.push(...(history || []));
+    renderChatWindow();
   }
 
   function clearChat(c) {
+    const drop = (m) => (c.all ? true : c.userId ? m.kind === 'msg' && m.user.id === c.userId : m.id === c.msgId);
+    for (let i = chatBuf.length - 1; i >= 0; i--) if (drop(chatBuf[i])) chatBuf.splice(i, 1);
     if (c.all) {
       chatList.replaceChildren();
       return;
@@ -267,7 +328,20 @@
     readUpTo: 0,
     voiceManualUntil: 0,
     voiceResync: false,
+    restoreToken: 0,
+    sectionIdx: -2,
   };
+
+  // Nach einem Einschub an die vorherige Stelle zurückspringen
+  function applyRestore() {
+    const r = live && live.script && live.script.restoreTo;
+    if (!IS_MAIN || !r || r.token === sv.restoreToken || r.id !== sv.id) return;
+    sv.restoreToken = r.token;
+    sv.pos = clamp(r.pos, 0, sv.max);
+    sv.tween = 0;
+    report(true);
+    if (voiceOn()) S.api('/api/report', { kind: 'voice-seek', pos: wordIndexAt(sv.pos) }).catch(() => {});
+  }
 
   // ---------------------------------------------------------------- Sprachsteuerung (Wörter, Mitscrollen)
 
@@ -333,9 +407,11 @@
       sv.wordEls = [...scriptText.querySelectorAll('.w')];
     }
     sv.readUpTo = 0;
+    sv.sectionIdx = -2;
     layoutScript();
     sendWords();
     updateRead();
+    applyRestore();
     sv.pos = same ? frac * sv.max : 0;
     sv.tween = 0;
     report(true);
@@ -362,7 +438,8 @@
   function setPlaying(v) {
     if (v === sv.playing) return;
     sv.playing = v;
-    const cd = voiceOn() ? 0 : settings.script.countdown; // bei Sprachsteuerung wartet der Prompter ohnehin auf dich
+    // Ohne Countdown: bei Sprachsteuerung (wartet ohnehin) und bei Einschüben
+    const cd = voiceOn() || (live && live.script.instant) ? 0 : settings.script.countdown;
     const atStart = (IS_MAIN ? sv.pos : sv.targetPos) < 2;
     sv.countdownUntil = v && atStart && cd > 0 ? Date.now() + cd * 1000 : 0;
   }
@@ -413,7 +490,8 @@
         report(true);
         break;
       case 'nudge':
-        sv.tween += c.dir * scriptViewport.clientHeight * 0.3;
+        // Clicker/Pedal: eine Zeile; Hotkeys: ein Drittel des Bildschirms
+        sv.tween += c.dir * (c.amount === 'line' ? settings.script.fontSize * settings.script.lineHeight : scriptViewport.clientHeight * 0.3);
         break;
       case 'section':
         gotoSection(c.dir);
@@ -438,7 +516,8 @@
 
     if (IS_MAIN) {
       const follow = voiceOn() && sv.playing;
-      if (sv.playing && !counting && !follow) sv.pos += speed * dt;
+      const dir = (live && live.script.dir) || 1;
+      if (sv.playing && !counting && !follow) sv.pos += speed * dt * dir;
       if (follow && !sv.tween && now > sv.voiceManualUntil) {
         const target = voiceTarget();
         if (target != null) {
@@ -463,7 +542,20 @@
         sv.pos = sv.max;
         if (sv.tween > 0) sv.tween = 0;
       }
-      if (sv.playing && !counting && sv.max > 0 && sv.pos >= sv.max) {
+      // Kapitelmarken: Abschnitt melden, sobald seine Überschrift die Lesezeile erreicht
+      if (sv.playing && sv.headings.length) {
+        let idx = -1;
+        for (let i = 0; i < sv.headings.length; i++) if (sv.headings[i] <= sv.pos + 2) idx = i;
+        if (idx !== sv.sectionIdx) {
+          sv.sectionIdx = idx;
+          const h = idx >= 0 ? scriptText.querySelector(`[data-sec="${idx}"]`) : null;
+          if (h) S.api('/api/report', { kind: 'section', index: idx, title: h.textContent.trim() }).catch(() => {});
+        }
+      }
+      if (sv.playing && !counting && dir < 0 && sv.pos <= 0) {
+        sv.playing = false; // rückwärts oben angekommen
+        report(true, true);
+      } else if (sv.playing && !counting && sv.max > 0 && sv.pos >= sv.max) {
         sv.playing = false;
         report(true, true);
       } else {
@@ -471,7 +563,7 @@
       }
     } else {
       // Vorschau: zwischen den Positionsmeldungen weiterlaufen, dann sanft angleichen
-      if (sv.playing && !counting) sv.targetPos = Math.min(sv.max, sv.targetPos + speed * dt);
+      if (sv.playing && !counting && !voiceOn()) sv.targetPos = clamp(sv.targetPos + speed * dt * ((live && live.script.dir) || 1), 0, sv.max);
       const diff = sv.targetPos - sv.pos;
       sv.pos += Math.abs(diff) < 0.5 ? diff : diff * Math.min(1, dt * 8);
     }
@@ -586,6 +678,7 @@
       if (!tw.channel) return t('mode.chat');
       return tw.joined ? `#${tw.channel}` : `#${tw.channel} · ${t('p.connecting')}`;
     }
+    if (m === 'script' && live.insert) return `↪ ${t('p.insert')}: ${sv.title}`;
     if (m === 'script') {
       const title = sv.title || t('mode.script');
       if (voiceOn()) {
@@ -625,6 +718,7 @@
       setPill(st.rec, 'hidden', '');
     }
     setText(st.center, centerText());
+    renderDirector();
     setText(st.clock, new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }));
 
     if (live.mode === 'obs') {
@@ -837,7 +931,25 @@
     else sendWords();
     updateRead();
     syncMic();
+    syncChatState();
+    applyRestore();
+    renderDirector();
     tickStatus();
+  }
+
+  // Regie-Nachricht groß einblenden, bis die Zeit abgelaufen ist
+  let directorId = '';
+  function renderDirector() {
+    const box = $('director');
+    const d = live && live.director;
+    const on = Boolean(d && serverNow() < d.until);
+    if (on && d.id !== directorId) {
+      directorId = d.id;
+      box.classList.remove('show');
+      void box.offsetWidth; // Einblend-Animation neu starten
+    }
+    setText(box.firstElementChild, on ? d.text : '');
+    box.classList.toggle('show', on);
   }
 
   // ---------------------------------------------------------------- Mikrofon (nur Prompter-Fenster)
@@ -961,7 +1073,7 @@
       renderScript();
     },
     live: onLive,
-    chat: (m) => addMessage(m, false),
+    chat: onChat,
     chatclear: clearChat,
     cmd: onCmd,
     _online(on) {

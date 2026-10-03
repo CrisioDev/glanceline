@@ -19,7 +19,7 @@
     const sections = [];
     let para = [];
     const flush = () => {
-      if (para.length) out.push(`<p>${para.map(inline).join('<br>')}</p>`);
+      if (para.length) out.push(`<p dir="auto">${para.map(inline).join('<br>')}</p>`);
       para = [];
     };
     for (const raw of String(md || '').replace(/\r\n?/g, '\n').split('\n')) {
@@ -29,7 +29,7 @@
         flush();
         const level = h[1].length;
         sections.push({ title: h[2], level });
-        out.push(`<h${level} data-sec="${sections.length - 1}">${inline(h[2])}</h${level}>`);
+        out.push(`<h${level} dir="auto" data-sec="${sections.length - 1}">${inline(h[2])}</h${level}>`);
       } else if (/^\s*(---|\*\*\*)\s*$/.test(line)) {
         flush();
         out.push('<hr>');
@@ -46,7 +46,7 @@
   function renderNotes(text) {
     return String(text || '')
       .split('\n')
-      .map((l) => (l.trim() ? `<div class="nl">${inline(l)}</div>` : '<div class="nl gap"></div>'))
+      .map((l) => (l.trim() ? `<div class="nl" dir="auto">${inline(l)}</div>` : '<div class="nl gap"></div>'))
       .join('');
   }
 

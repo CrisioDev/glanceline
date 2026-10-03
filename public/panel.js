@@ -45,6 +45,8 @@
     gear: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
     plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/>',
     monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+    send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+    insert: '<polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
     phone: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>',
@@ -160,7 +162,10 @@
     $$('.page').forEach((p) => p.classList.toggle('active', p.id === `page-${name}`));
     try { localStorage.setItem('glanceline.tab', name); } catch { /* egal */ }
     if (name === 'live') requestAnimationFrame(scalePreview);
-    if (name === 'settings') loadObsSources();
+    if (name === 'settings') {
+      loadObsSources();
+      loadFonts();
+    }
   }
 
   // ---------------------------------------------------------------- Einstellungen (generische Bindung)
@@ -252,6 +257,12 @@
       ]),
     ],
     mics: () => [['', t('voice.micDefault')], ...((live && live.mics) || []).map((d) => [d.label, d.label])],
+    fonts: () => {
+      const bundled = FONT_OPTIONS();
+      const names = new Set(bundled.map(([v]) => v));
+      return [...bundled, ...systemFontList.filter((f) => !names.has(f)).map((f) => [f, f])];
+    },
+    scriptsOpt: () => [['', t('inserts.none')], ...((scripts && scripts.items) || []).map((i) => [i.id, i.title || t('scripts.untitled')])],
     voiceLangs: () => [['auto', t('voice.langAuto')], ...VOICE_LANGS.map((l) => [l, t(`lang.${l}`)])],
     cameras: () => [['', t('settings.cameraAuto')], ...((live && live.camera.devices) || []).map((d) => [d.label, d.label])],
     obsSources: () => [
@@ -288,8 +299,17 @@
   // ---------------------------------------------------------------- Einstellungs-Seite
 
   const MODE_OPTIONS = () => [['chat', t('mode.chat')], ['script', t('mode.script')], ['obs', t('mode.obsLong')], ['ppt', t('mode.ppt')], ['camera', t('mode.cameraLong')]];
+  let systemFontList = [];
+  async function loadFonts() {
+    if (systemFontList.length) return;
+    try {
+      systemFontList = (await S.api('/api/fonts')).fonts || [];
+      fillDyn();
+    } catch { /* egal */ }
+  }
   const FONT_OPTIONS = () => [
     ['Atkinson Hyperlegible', t('settings.fontAtkinson')],
+    ['OpenDyslexic', t('settings.fontDyslexic')],
     ['Segoe UI', 'Segoe UI'],
     ['Inter', 'Inter'],
     ['Verdana', 'Verdana'],
@@ -319,7 +339,14 @@
         { k: 'display.mirror', l: 'settings.mirror', type: 'toggle', h: 'settings.mirrorHint' },
         { k: 'display.testWindow', l: 'settings.testWindow', type: 'toggle' },
         { k: 'display.statusBar', l: 'settings.statusBar', type: 'toggle' },
-        { k: 'display.fontFamily', l: 'settings.font', type: 'select', options: FONT_OPTIONS() },
+        { k: 'display.fontFamily', l: 'settings.font', type: 'select', dyn: 'fonts', h: 'settings.fontHint' },
+        { k: 'display.highContrast', l: 'settings.highContrast', type: 'toggle', h: 'settings.highContrastHint' },
+        { k: 'display.brightness', l: 'settings.brightness', type: 'range', min: 0.2, max: 1, step: 0.05, fmt: 'pct', h: 'settings.brightnessHint' },
+        { k: 'display.crosshair', l: 'settings.crosshair', type: 'toggle', h: 'settings.crosshairHint' },
+        { k: 'display.crossX', l: 'settings.crossX', type: 'range', min: 0, max: 1, step: 0.01, fmt: 'pct', show: 'display.crosshair=true' },
+        { k: 'display.crossY', l: 'settings.crossY', type: 'range', min: 0, max: 1, step: 0.01, fmt: 'pct', show: 'display.crosshair=true' },
+        { k: 'display.crossSize', l: 'settings.crossSize', type: 'range', min: 16, max: 300, step: 2, fmt: 'px', show: 'display.crosshair=true' },
+        { k: 'display.crossOpacity', l: 'settings.crossOpacity', type: 'range', min: 0.1, max: 1, step: 0.05, fmt: 'pct', show: 'display.crosshair=true' },
         { k: 'display.textColor', l: 'settings.textColor', type: 'color' },
         { k: 'display.accentColor', l: 'settings.accentColor', type: 'color' },
       ],
@@ -380,6 +407,33 @@
         { k: 'script.guide', l: 'settings.guide', type: 'range', min: 0.1, max: 0.6, step: 0.02, fmt: 'pct', h: 'settings.guideHint' },
         { k: 'script.showGuide', l: 'settings.showGuide', type: 'toggle' },
         { k: 'script.countdown', l: 'settings.countdown', type: 'number', min: 0, max: 10, unit: t('settings.seconds') },
+        { k: 'script.margin', l: 'settings.margin', type: 'range', min: 0, max: 0.45, step: 0.01, fmt: 'pct', h: 'settings.marginHint' },
+        { k: 'script.align', l: 'settings.align', type: 'select', options: [['left', t('settings.alignStart')], ['center', t('settings.alignCenter')]] },
+      ],
+    },
+    {
+      id: 'sec-clicker',
+      title: 'settings.sec.clicker',
+      lead: 'settings.sec.clickerLead',
+      fields: [
+        { k: 'clicker.enabled', l: 'clicker.enabled', type: 'toggle', h: 'clicker.enabledHint' },
+        { k: 'clicker.step', l: 'clicker.step', type: 'select', options: [['line', t('clicker.stepLine')], ['page', t('clicker.stepPage')]] },
+      ],
+      extra: `<table class="hk-table"><tbody>${['forward', 'back', 'toggle'].map((slot) => `<tr><td>${esc(t(`clicker.${slot}`))}</td><td><button class="hk" data-clk="${slot}"></button><span class="hk-err" data-hk-err="clicker:${slot}"></span></td></tr>`).join('')}</tbody></table>`,
+    },
+    {
+      id: 'sec-inserts',
+      title: 'settings.sec.inserts',
+      lead: 'settings.sec.insertsLead',
+      fields: [1, 2, 3, 4].map((n) => ({ k: `inserts.${n}`, l: 'inserts.slot', vars: { n }, type: 'select', dyn: 'scriptsOpt' })),
+    },
+    {
+      id: 'sec-director',
+      title: 'director.title',
+      lead: 'settings.sec.directorLead',
+      fields: [
+        { k: 'director.seconds', l: 'director.seconds', type: 'number', min: 3, max: 300, unit: t('settings.seconds') },
+        { k: 'director.presets', l: 'director.presets', type: 'list', h: 'director.presetsHint' },
       ],
     },
     {
@@ -414,8 +468,10 @@
         { k: 'obs.host', l: 'settings.obsHost', type: 'text' },
         { k: 'obs.port', l: 'settings.port', type: 'number', min: 1, max: 65535 },
         { k: 'obs.password', l: 'settings.obsPassword', type: 'password', placeholder: t('settings.obsPasswordPlaceholder') },
+        { k: 'obsAuto.recordWithScript', l: 'obsAuto.record', type: 'toggle', h: 'obsAuto.recordHint' },
+        { k: 'obsAuto.chapters', l: 'obsAuto.chapters', type: 'toggle', h: 'obsAuto.chaptersHint' },
       ],
-      extra: '<p class="hint" id="obsSettingsState"></p>',
+      extra: `<p class="hint" id="obsSettingsState"></p><h3 class="sub">${esc(t('obsAuto.scenes'))}</h3><p class="hint">${esc(t('obsAuto.scenesHint'))}</p><div id="sceneModes"></div>`,
     },
     { id: 'sec-network', title: 'settings.sec.network', custom: 'network' },
     { id: 'sec-hotkeys', title: 'settings.sec.hotkeys', custom: 'hotkeys' },
@@ -424,7 +480,8 @@
   const ACTIONS = [
     'mode:chat', 'mode:script', 'mode:obs', 'mode:ppt', 'mode:camera', 'blackout', 'camera:toggle',
     'script:toggle', 'script:slower', 'script:faster', 'view:back', 'view:forward',
-    'script:prevSection', 'script:nextSection', 'script:restart', 'font:bigger', 'font:smaller', 'ppt:timerReset', 'voice:toggle',
+    'script:prevSection', 'script:nextSection', 'script:restart', 'script:reverse', 'font:bigger', 'font:smaller', 'ppt:timerReset', 'voice:toggle',
+    'passthrough', 'chat:pause', 'insert:1', 'insert:2', 'insert:3', 'insert:4', 'director:clear',
   ];
   const VOICE_LANGS = ['de', 'en', 'fr', 'es'];
 
@@ -432,7 +489,7 @@
     const id = `f_${f.k.replace(/\./g, '_')}`;
     const show = f.show ? ` data-show="${f.show}"` : '';
     const hint = f.h ? `<small class="hint">${esc(t(f.h))}</small>` : '';
-    const label = esc(t(f.l));
+    const label = esc(t(f.l, f.vars));
     const after = f.after || '';
     switch (f.type) {
       case 'toggle':
@@ -647,6 +704,12 @@
       setText(b, acc ? fmtAccel(acc) : t('hk.none'));
       b.classList.toggle('empty', !acc);
     });
+    $$('[data-clk]').forEach((b) => {
+      if (b === recording.btn) return;
+      const acc = settings.clicker[b.dataset.clk] || '';
+      setText(b, acc ? fmtAccel(acc) : t('hk.none'));
+      b.classList.toggle('empty', !acc);
+    });
     renderHotkeyErrors();
   }
 
@@ -657,6 +720,7 @@
       setText(n, e ? t(`hk.err.${e}`) : '');
     });
     $$('[data-hk]').forEach((b) => b.classList.toggle('err', errs.has(b.dataset.hk)));
+    $$('[data-clk]').forEach((b) => b.classList.toggle('err', errs.has(`clicker:${b.dataset.clk}`)));
   }
 
   function setHotkey(id, acc) {
@@ -708,6 +772,13 @@
       btn.textContent = mods.length ? `${fmtAccel(mods.join('+'))} + …` : t('hk.pressShort');
       return;
     }
+    if (btn.dataset.clk) {
+      const slot = btn.dataset.clk;
+      stopRecording();
+      sendSetting(`clicker.${slot}`, [...mods, key].join('+'));
+      renderHotkeys();
+      return;
+    }
     if (!mods.length && !/^F\d+$/.test(key)) {
       btn.textContent = t('hk.needModifier');
       return;
@@ -741,6 +812,7 @@
     renderPptCard();
     renderCamCard();
     renderVoice();
+    renderPhase1();
     renderConn();
     renderNetwork();
     renderPhone();
@@ -895,6 +967,54 @@
     }
     setFacts($('#pptFacts'), facts);
     setText($('#pptNotesPreview'), p.notes || '');
+  }
+
+  function renderPhase1() {
+    if (!live || !settings || !scripts) return;
+    // Durchreich-Modus
+    $('#passthroughBtn').classList.toggle('active', Boolean(live.passthrough));
+    // Chat-Pause
+    const c = live.chat || {};
+    const held = c.paused || c.offset > 0;
+    setText($('#chatPauseBtn span'), held ? t('chat.resume') : t('chat.pause'));
+    setIcon($('#chatPauseBtn i'), held ? 'play' : 'pause');
+    setText($('#chatPauseState'), c.offset > 0 ? t('p.chatRewind', { n: c.offset }) : c.paused ? t('p.chatPaused') : '');
+    // Einschübe
+    const insertHtml = [1, 2, 3, 4]
+      .map((n) => {
+        const it = scripts.items.find((x) => x.id === settings.inserts[n]);
+        if (!it) return '';
+        const running = live.insert && String(live.insert.slot) === String(n);
+        const label = running ? t('inserts.back') : it.title || t('scripts.untitled');
+        return `<button class="btn sm${running ? ' running' : ''}" data-action="insert:${n}" title="${esc(t('inserts.slot', { n }))}"><i data-icon="insert"></i>${esc(label)}</button>`;
+      })
+      .join('');
+    const row = $('#insertRow');
+    if (row._html !== insertHtml) {
+      setHtml(row, insertHtml);
+      hydrateIcons(row);
+    }
+    // Regie
+    const presets = (settings.director.presets || []).map((p, i) => `<button class="btn sm" data-preset="${i}">${esc(p)}</button>`).join('');
+    setHtml($('#directorPresets'), presets);
+    const d = live.director;
+    const left = d ? Math.ceil((d.until - serverNow()) / 1000) : 0;
+    setHtml($('#directorState'), d && left > 0 ? `<span>${esc(t('director.showing'))} <b>${esc(d.text)}</b> · ${left} s</span><button class="link" data-action="director:clear">${esc(t('director.clear'))}</button>` : '');
+    // Szenen → Modus
+    const box = $('#sceneModes');
+    if (box) {
+      const scenes = obsSources.scenes || [];
+      const map = settings.obsAuto.sceneModes || {};
+      const html = scenes.length
+        ? `<table class="scene-table"><tbody>${scenes
+            .map((sc) => `<tr><td>${esc(sc)}</td><td><select data-scene="${esc(sc)}">${[['', t('obsAuto.noChange')], ...MODE_OPTIONS()]
+              .map(([v, l]) => `<option value="${v}"${(map[sc] || '') === v ? ' selected' : ''}>${esc(l)}</option>`)
+              .join('')}</select></td></tr>`)
+            .join('')}</tbody></table>`
+        : `<p class="hint">${esc(t('obsAuto.noScenes'))}</p>`;
+      if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.scene != null) return;
+      setHtml(box, html);
+    }
   }
 
   function renderVoice() {
@@ -1158,6 +1278,10 @@
       S.action('script:section', { index: Number(d.section) });
     } else if (d.scriptId) {
       openScript(d.scriptId);
+    } else if (d.clk) {
+      startRecording(btn);
+    } else if (d.preset != null) {
+      S.action('director:send', { text: settings.director.presets[Number(d.preset)] }).catch(() => note(t('note.actionFailed')));
     } else if (d.hk) {
       startRecording(btn);
     } else if (d.hkReset) {
@@ -1187,12 +1311,35 @@
 
   new ResizeObserver(scalePreview).observe($('#preview'));
 
+  // Regie-Nachricht senden (Knopf oder Enter)
+  function sendDirector() {
+    const input = $('#directorText');
+    const text = input.value.trim();
+    if (!text) return;
+    S.action('director:send', { text })
+      .then(() => { input.value = ''; })
+      .catch(() => note(t('note.actionFailed')));
+  }
+  $('#directorSend').addEventListener('click', sendDirector);
+  $('#directorText').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendDirector();
+  });
+
+  // OBS-Szene → Modus
+  document.addEventListener('change', (e) => {
+    if (!e.target.dataset || e.target.dataset.scene == null) return;
+    const map = {};
+    $$('select[data-scene]').forEach((sel) => { if (sel.value) map[sel.dataset.scene] = sel.value; });
+    sendSetting('obsAuto.sceneModes', map);
+  });
+
   // Laufende Uhren (Timer, Stream-Dauer) auch ohne neue Daten weiterzählen
   setInterval(() => {
     if (!live || !settings) return;
     renderChips();
     renderObsCard();
     renderPptCard();
+    renderPhase1(); // Restzeit der Regie-Nachricht
   }, 1000);
 
   // ---------------------------------------------------------------- Start

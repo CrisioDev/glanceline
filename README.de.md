@@ -19,8 +19,8 @@ Umschalten geht per Klick oder globalem Hotkey. Auf Wunsch liegt dein eigenes Ka
 
 | Modus | Was auf dem Prompter erscheint |
 |---|---|
-| **Chat** | Twitch-Chat, anonym gelesen (kein Login): <br>• Emotes von Twitch, **7TV**, BTTV und FFZ, inklusive Zero-Width-Emotes <br>• **7TV live**: neue oder entfernte Emotes erscheinen sofort <br>• Subs, Gift-Subs, Raids, Bits und @Erwähnungen hervorgehoben <br>• Filter für Bots und !Befehle |
-| **Skript** | Teleprompter, der **deiner Stimme folgen** kann – offline, ohne Grafikkarte, Deutsch/Englisch/Französisch/Spanisch. Er wartet, wenn du abschweifst, und holt auf, wenn du etwas überspringst. Außerdem: <br>• Lesezeile und Countdown <br>• Tempo-Regelung <br>• Markdown-Abschnitten, zu denen du per Hotkey springst <br>• Regie-Schildern wie `[Pause]` |
+| **Chat** | Twitch-Chat, anonym gelesen (kein Login): <br>• Emotes von Twitch, **7TV**, BTTV und FFZ, inklusive Zero-Width-Emotes <br>• **7TV live**: neue oder entfernte Emotes erscheinen sofort <br>• Subs, Gift-Subs, Raids, Bits und @Erwähnungen hervorgehoben <br>• Kanalpunkte-Nachrichten, Erst- und Wiederkehrer, Shared Chat markiert <br>• Chat per Hotkey **pausieren und zurückspulen** <br>• Filter für Bots und !Befehle |
+| **Skript** | Teleprompter, der **deiner Stimme folgen** kann – offline, ohne Grafikkarte, Deutsch/Englisch/Französisch/Spanisch. Er wartet, wenn du abschweifst, und holt auf, wenn du etwas überspringst. Außerdem: <br>• Lesezeile und Countdown <br>• Tempo-Regelung <br>• Markdown-Abschnitten, zu denen du per Hotkey springst <br>• Regie-Schildern wie `[Pause]` <br>• **Clicker & Fußpedal** (Bild↑/Bild↓ oder beliebige Tasten) <br>• **Einschübe**: ein Hotkey schiebt ein kurzes Skript dazwischen (Raid-Dank, Werbung) und springt danach an die alte Stelle zurück <br>• Rechts-nach-links-Schrift und Rückwärtslauf |
 | **OBS** | LIVE-/REC-Zeiten, Szene, FPS, CPU, Bitrate und Drops (über obs-websocket) |
 | **PowerPoint** | Notizen der **aktuellen Folie**, automatisch synchron, auch mit Presenter-Clicker. Die Schrift passt sich an, dazu Titel der nächsten Folie und Vortragstimer. Schaltet sich beim Start der Präsentation selbst ein. |
 | **Kamera** | Dein Kamerabild als Kontrollmonitor |
@@ -30,6 +30,10 @@ Außerdem:
 - **Kamerabild hinter dem Text.** Der Text bleibt lesbar, Abdunkelung und Hinterlegung sind einstellbar. Quelle ist eine Webcam oder eine beliebige OBS-Quelle.
 - **Statusleiste in jedem Modus** mit LIVE-/REC-Anzeige und Uhr. Raids und Subs werden auch eingeblendet, während du ein Skript liest.
 - **Steuerung von überall:** Panel mit Live-Vorschau, Handy (QR-Code scannen, zum Startbildschirm hinzufügen), OBS-Dock oder **globale Hotkeys** (Stream Deck: Aktion „Hotkey“).
+- **Blickkontakt-Hilfen:** Linsen-Fadenkreuz, schmale Textspalte, zentrierter Text. Jede installierte Schrift, OpenDyslexic, Hochkontrast und Software-Dimmer gegen Spiegelungen.
+- **OBS-Automatik:** Ein Szenenwechsel in OBS schaltet den Prompter-Modus um (z. B. *Just Chatting* → Chat). Optional startet die Aufnahme mit dem Skript, mit Kapitelmarken pro Abschnitt und Folie.
+- **Regie-Nachrichten:** Eine kurze Notiz vom Panel oder Handy („Noch 2 Minuten“) erscheint auf dem Prompter.
+- **Durchreichen:** Glanceline auf dem Prompter ausblenden, um dort andere Programme zu nutzen (Zoom, Browser).
 - **Prompter-Erkennung** über Name oder Auflösung. Windows-Skalierung wird berücksichtigt, Spiegelung ist optional.
 - **Deutsch & Englisch**, Tray-Symbol und Autostart mit Windows. Bis auf Chat und Emotes läuft alles offline. **Keine Telemetrie.**
 
@@ -65,6 +69,11 @@ Aus dem Quellcode: `npm install`, dann `npm start`.
 | Strg+Alt+Num 1 | Skript an den Anfang |
 | Strg+Alt+Num + / − | Schriftgröße |
 | Strg+Alt+Num 3 | Sprachsteuerung an/aus |
+| Strg+Alt+F9 | Durchreichen an/aus |
+| Strg+Alt+F10 | Chat pausieren/fortsetzen |
+| Strg+Alt+F11 / F12 | Einschub 1 / 2 |
+
+Clicker-Tasten (Bild↓ / Bild↑ / B) sind anfangs aus und werden unter *Einstellungen → Clicker & Fußpedal* eingeschaltet. Sie gelten nur im Skript-Modus, PowerPoint behält also seine Tasten.
 
 Strg+Alt+Buchstabe ist bewusst ausgespart, weil das auf deutschen Tastaturen AltGr ist (@, €, {, [ …).
 

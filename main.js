@@ -73,6 +73,20 @@ async function boot() {
     updateTrayMenu();
   });
   core.on('hotkeys', registerHotkeys);
+  // Clicker-Tasten gelten nur im Skript-Modus – bei jedem Moduswechsel neu belegen
+  core.on('mode', () => {
+    if (core.settings.clicker.enabled) registerHotkeys();
+    updateTrayMenu();
+  });
+  core.on('passthrough', (on) => {
+    if (prompterWin && !prompterWin.isDestroyed()) {
+      if (on) prompterWin.hide();
+      else if (prompterKind === 'prompter') prompterWin.showInactive();
+      else prompterWin.show();
+    }
+    if (core.settings.clicker.enabled) registerHotkeys(); // Clicker-Tasten freigeben bzw. wieder belegen
+    updateTrayMenu();
+  });
   core.on('language', () => {
     updateTrayMenu();
     if (tray) tray.setToolTip(t('tray.tooltip'));
@@ -192,6 +206,7 @@ function createPrompterWindow(kind) {
   win.webContents.on('did-finish-load', applyZoom);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.once('ready-to-show', () => {
+    if (core.live.passthrough) return; // Durchreich-Modus: Fenster bleibt verborgen
     if (kind === 'prompter') win.showInactive();
     else win.show();
   });
@@ -226,7 +241,7 @@ function placePrompter() {
   if (kind === 'prompter') {
     prompterWin.setBounds(target.bounds);
     prompterWin.setAlwaysOnTop(true, 'screen-saver');
-    if (prompterWin.isVisible()) prompterWin.showInactive();
+    if (prompterWin.isVisible() && !core.live.passthrough) prompterWin.showInactive();
   }
   applyZoom();
   core.setPrompterInfo({ kind: kind || 'none', display: target ? describeDisplay(target) : null });
@@ -313,6 +328,27 @@ function registerHotkeys() {
       errors.push({ action, accel, error: 'invalid' });
     }
   }
+
+  // Clicker & Fußpedal: einfache Tasten, aber nur im Skript-Modus (PowerPoint & Co. behalten sie sonst)
+  const c = core.settings.clicker;
+  if (c.enabled && core.live.mode === 'script' && !core.live.passthrough) {
+    const bind = {
+      forward: { type: 'view:forward', target: 'script', amount: c.step },
+      back: { type: 'view:back', target: 'script', amount: c.step },
+      toggle: { type: 'script:toggle' },
+    };
+    for (const [slot, act] of Object.entries(bind)) {
+      const accel = c[slot];
+      if (!accel || used.has(accel.toLowerCase())) continue;
+      used.add(accel.toLowerCase());
+      try {
+        const ok = globalShortcut.register(accel, () => core.action({ ...act, source: 'clicker' }));
+        if (!ok) errors.push({ action: `clicker:${slot}`, accel, error: 'taken' });
+      } catch {
+        errors.push({ action: `clicker:${slot}`, accel, error: 'invalid' });
+      }
+    }
+  }
   core.setHotkeyErrors(errors);
 }
 
@@ -372,6 +408,12 @@ function updateTrayMenu() {
       mode('ppt', t('mode.ppt')),
       mode('camera', t('mode.cameraLong')),
       { label: t('tray.blackout'), click: () => core.action({ type: 'blackout' }) },
+      {
+        label: t('tray.passthrough'),
+        type: 'checkbox',
+        checked: Boolean(core.live.passthrough),
+        click: () => core.action({ type: 'passthrough' }),
+      },
       { type: 'separator' },
       {
         label: prompterKind === 'prompter' ? t('tray.replace') : t('tray.search'),
@@ -406,6 +448,11 @@ async function runSnapshot(dir) {
     fs.writeFileSync(path.join(dir, `${name}.png`), img.toPNG());
   };
   const exec = (win, js) => win.webContents.executeJavaScript(js, true).catch((e) => console.error(e.message));
+  // Konsolenmeldungen beider Fenster mitschreiben (Fehlersuche)
+  const consoleLog = [];
+  for (const [name, win] of [['panel', panelWin], ['prompter', prompterWin]]) {
+    if (win) win.webContents.on('console-message', (e) => consoleLog.push(`[${name}] ${e.level}: ${e.message} (${e.sourceId}:${e.lineNumber})`));
+  }
   try {
     await wait(5000);
     const steps = (argValue('--snapshot-steps') || 'chat').split(',');
@@ -416,6 +463,27 @@ async function runSnapshot(dir) {
         await save(panelWin, `panel-${step.slice(4)}`);
       } else if (step === 'panel') {
         await save(panelWin, 'panel');
+      } else if (step.startsWith('eval:')) {
+        // eval:<URL-kodiertes JS> → im Panel ausführen, Ergebnis speichern (Fehlersuche)
+        const result = await exec(panelWin, decodeURIComponent(step.slice(5)));
+        fs.writeFileSync(path.join(dir, `eval-${Date.now()}.json`), JSON.stringify(result, null, 1));
+      } else if (step.startsWith('act:')) {
+        // act:<URL-kodiertes JSON> → Aktion mit Parametern, z. B. Regie-Nachricht
+        core.action(JSON.parse(decodeURIComponent(step.slice(4))));
+        await wait(1500);
+      } else if (step.startsWith('live:')) {
+        // Zustand festhalten: Live-Daten, Fenster sichtbar?, Clicker-Tasten belegt?
+        const c = core.settings.clicker;
+        const dump = {
+          live: core.live,
+          prompterVisible: Boolean(prompterWin && !prompterWin.isDestroyed() && prompterWin.isVisible()),
+          clickerRegistered: [c.forward, c.back, c.toggle].map((k) => [k, globalShortcut.isRegistered(k)]),
+        };
+        fs.writeFileSync(path.join(dir, `live-${step.slice(5)}.json`), JSON.stringify(dump, null, 1));
+      } else if (step.startsWith('sendkeys:')) {
+        // Tastendruck simulieren (für Clicker-Tests), z. B. sendkeys:{PGDN}
+        require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-Command', `(New-Object -ComObject WScript.Shell).SendKeys('${step.slice(9)}')`], { windowsHide: true });
+        await wait(1200);
       } else if (step.startsWith('scroll:')) {
         // scroll:sec-voice → Einstellungsabschnitt ins Bild holen und fotografieren
         await exec(panelWin, `document.getElementById('${step.slice(7)}').scrollIntoView({ block: 'start' })`);
@@ -444,6 +512,7 @@ async function runSnapshot(dir) {
     }
   } finally {
     fs.writeFileSync(path.join(dir, 'live.json'), JSON.stringify(core.live, null, 1));
+    fs.writeFileSync(path.join(dir, 'console.log'), consoleLog.join('\n'));
     quitting = true;
     app.quit();
   }
