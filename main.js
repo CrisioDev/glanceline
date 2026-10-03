@@ -169,7 +169,23 @@ function findTarget() {
 // Eigener Host („localhost“ statt 127.0.0.1), weil Chromium den Zoom pro Host teilt –
 // so bleibt das Panel samt Vorschau vom Prompter-Zoom unberührt.
 // GLANCELINE_NO_MIC=1: nur für automatische Tests – der Prompter nimmt dann kein Mikrofon auf
-const prompterUrl = () => `${core.baseUrl().replace('127.0.0.1', 'localhost')}/prompter?role=main${process.env.GLANCELINE_NO_MIC ? '&nomic=1' : ''}`;
+const prompterUrl = (kind) => `${core.baseUrl().replace('127.0.0.1', 'localhost')}/prompter?role=main${kind === 'virtual' ? '&virtual=1' : ''}${process.env.GLANCELINE_NO_MIC ? '&nomic=1' : ''}`;
+
+// Virtueller Prompter: gespeicherte Position, sofern noch auf einem Bildschirm sichtbar – sonst oben mittig unter der Webcam
+function virtualBounds(reset) {
+  const saved = core.settings.windowState.virtual;
+  if (!reset && saved && Number.isFinite(saved.x) && Number.isFinite(saved.width)) {
+    const visible = screen.getAllDisplays().some((d) => {
+      const a = d.workArea;
+      return saved.x < a.x + a.width - 40 && saved.x + saved.width > a.x + 40 && saved.y >= a.y - 10 && saved.y < a.y + a.height - 40;
+    });
+    if (visible) return { x: saved.x, y: saved.y, width: saved.width, height: saved.height };
+  }
+  const a = screen.getPrimaryDisplay().workArea;
+  const width = Math.min(720, Math.round(a.width * 0.45));
+  const height = Math.round(width * 0.42);
+  return { x: Math.round(a.x + (a.width - width) / 2), y: a.y + 8, width, height };
+}
 
 // Bei 125 % Windows-Skalierung hätte die Seite nur 820×480 CSS-Pixel. Mit Zoom 1/Skalierung
 // rendert sie immer in echten 1024×600 – identisch zur Vorschau im Panel.
@@ -186,7 +202,23 @@ function createPrompterWindow(kind) {
     webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
   };
   const win =
-    kind === 'prompter'
+    kind === 'virtual'
+      ? new BrowserWindow({
+          ...common,
+          ...virtualBounds(),
+          frame: false,
+          resizable: true,
+          minWidth: 220,
+          minHeight: 110,
+          maximizable: false,
+          minimizable: false,
+          fullscreenable: false,
+          skipTaskbar: true,
+          alwaysOnTop: true,
+          hasShadow: false,
+          title: 'Glanceline',
+        })
+      : kind === 'prompter'
       ? new BrowserWindow({
           ...common,
           frame: false,
@@ -211,12 +243,27 @@ function createPrompterWindow(kind) {
           autoHideMenuBar: true,
         });
   if (kind === 'test') setTaskbarDetails(win);
-  win.loadURL(prompterUrl());
+  if (kind === 'virtual') {
+    // Für OBS, Zoom, Teams & Co. unsichtbar (Windows 10 2004+), schwebt über Videocalls
+    win.setContentProtection(true);
+    win.setAlwaysOnTop(true, 'floating');
+    win.setOpacity(core.settings.display.virtualOpacity);
+    let saveTimer = null;
+    const save = () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        if (!win.isDestroyed()) core.patchSettings({ windowState: { virtual: win.getBounds() } });
+      }, 600);
+    };
+    win.on('moved', save);
+    win.on('resized', save);
+  }
+  win.loadURL(prompterUrl(kind));
   win.webContents.on('did-finish-load', applyZoom);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.once('ready-to-show', () => {
     if (core.live.passthrough) return; // Durchreich-Modus: Fenster bleibt verborgen
-    if (kind === 'prompter') win.showInactive();
+    if (kind === 'prompter' || kind === 'virtual') win.showInactive();
     else win.show();
   });
   win.on('closed', () => {
@@ -233,10 +280,11 @@ function placePrompter() {
   const displays = screen.getAllDisplays();
   core.setDisplays(displays.map(describeDisplay));
 
-  let target = findTarget();
+  const virtual = core.settings.display.target === 'virtual';
+  let target = virtual ? null : findTarget();
   // Nie den Hauptbildschirm randlos zukleistern
   if (target && target.id === screen.getPrimaryDisplay().id) target = null;
-  const kind = target ? 'prompter' : core.settings.display.testWindow ? 'test' : null;
+  const kind = virtual ? 'virtual' : target ? 'prompter' : core.settings.display.testWindow ? 'test' : null;
   const scale = (target || screen.getPrimaryDisplay()).scaleFactor || 1;
 
   if (kind !== prompterKind || (kind === 'test' && scale !== prompterScale)) {
@@ -252,6 +300,7 @@ function placePrompter() {
     prompterWin.setAlwaysOnTop(true, 'screen-saver');
     if (prompterWin.isVisible() && !core.live.passthrough) prompterWin.showInactive();
   }
+  if (kind === 'virtual') prompterWin.setOpacity(core.settings.display.virtualOpacity);
   applyZoom();
   core.setPrompterInfo({ kind: kind || 'none', display: target ? describeDisplay(target) : null });
   updateTrayMenu();
@@ -425,8 +474,11 @@ function updateTrayMenu() {
       },
       { type: 'separator' },
       {
-        label: prompterKind === 'prompter' ? t('tray.replace') : t('tray.search'),
-        click: placePrompter,
+        label: prompterKind === 'virtual' ? t('tray.virtualReset') : prompterKind === 'prompter' ? t('tray.replace') : t('tray.search'),
+        click: () => {
+          if (prompterKind === 'virtual' && prompterWin) prompterWin.setBounds(virtualBounds(true));
+          else placePrompter();
+        },
       },
       {
         label: t('tray.autostart'),
@@ -487,6 +539,9 @@ async function runSnapshot(dir) {
           live: core.live,
           prompterVisible: Boolean(prompterWin && !prompterWin.isDestroyed() && prompterWin.isVisible()),
           clickerRegistered: [c.forward, c.back, c.toggle].map((k) => [k, globalShortcut.isRegistered(k)]),
+          prompterWindow: prompterWin && !prompterWin.isDestroyed()
+            ? { kind: prompterKind, bounds: prompterWin.getBounds(), opacity: prompterWin.getOpacity(), hwnd: String(prompterWin.getNativeWindowHandle().readBigUInt64LE(0)) }
+            : null,
         };
         fs.writeFileSync(path.join(dir, `live-${step.slice(5)}.json`), JSON.stringify(dump, null, 1));
       } else if (step.startsWith('sendkeys:')) {

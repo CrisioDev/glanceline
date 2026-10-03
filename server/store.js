@@ -48,7 +48,8 @@ function defaultSettings() {
   return {
     general: { language: 'auto', setupDone: false, startMode: 'chat', autostart: false, lan: false, port: 4890, token: newToken() },
     display: {
-      target: 'auto',
+      target: 'auto', // 'auto', Bildschirm-ID oder 'virtual' (schwebendes Fenster)
+      virtualOpacity: 0.9,
       mirror: false,
       testWindow: true,
       statusBar: true,
@@ -99,6 +100,7 @@ function defaultSettings() {
     // Show-Timer: Laufzeit oder Countdown in der Statusleiste; startet von Hand, mit dem Skript oder mit dem Stream
     timers: { show: false, minutes: 0, start: 'script', warn: 2 },
     library: { folder: '' }, // Skript-Ordner, der live synchron gehalten wird
+    windowState: { virtual: null }, // Position des virtuellen Prompters
     voice: { enabled: false, lang: 'auto', micLabel: '', dimRead: true },
     ppt: { autoSwitch: true, maxFontSize: 54, minFontSize: 24, showNext: true, showTimer: true },
     obs: { host: '127.0.0.1', port: 4455, password: '' },
@@ -132,6 +134,7 @@ const RANGES = {
   'display.crossOpacity': [0.1, 1],
   'script.margin': [0, 0.45],
   'timers.minutes': [0, 600, true],
+  'display.virtualOpacity': [0.3, 1],
   'timers.warn': [0, 60, true],
   'director.seconds': [3, 300, true],
 };

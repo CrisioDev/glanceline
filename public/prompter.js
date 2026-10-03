@@ -8,6 +8,8 @@
   const ROLE = QUERY.get('role') === 'preview' ? 'preview' : 'main';
   const NO_MIC = QUERY.has('nomic'); // automatische Tests speisen Audio von außen ein
   const IS_MAIN = ROLE === 'main';
+  const VIRTUAL = QUERY.get('virtual') === '1'; // schwebendes Fenster statt Strahlteiler – nie spiegeln
+  if (VIRTUAL) document.documentElement.classList.add('virtual');
   const root = document.documentElement;
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => {
@@ -79,7 +81,7 @@
     set('--dimmer', (1 - s.display.brightness).toFixed(2));
     root.classList.toggle('hc', s.display.highContrast);
     root.classList.toggle('crosshair', s.display.crosshair);
-    root.classList.toggle('mirror', s.display.mirror);
+    root.classList.toggle('mirror', s.display.mirror && !VIRTUAL);
     root.classList.toggle('no-status', !s.display.statusBar);
     root.classList.toggle('no-guide', !s.script.showGuide);
     root.classList.toggle('selfie', s.camera.selfie);
