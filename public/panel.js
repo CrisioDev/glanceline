@@ -493,6 +493,7 @@
       extra: `<p class="hint" id="obsSettingsState"></p><h3 class="sub">${esc(t('obsAuto.scenes'))}</h3><p class="hint">${esc(t('obsAuto.scenesHint'))}</p><div id="sceneModes"></div>`,
     },
     { id: 'sec-network', title: 'settings.sec.network', custom: 'network' },
+    { id: 'sec-integrations', title: 'settings.sec.integrations', custom: 'integrations' },
     { id: 'sec-hotkeys', title: 'settings.sec.hotkeys', custom: 'hotkeys' },
   ];
 
@@ -540,6 +541,28 @@
       <div class="url-row"><code id="dockUrl"></code><button class="btn icon sm" data-copy-from="dockUrl" title="${esc(t('common.copy'))}"><i data-icon="copy"></i></button></div>`;
   }
 
+  function integrationsHtml() {
+    return `<p class="lead">${esc(t('integ.lead'))}</p>
+      <h3 class="sub">Stream Deck</h3>
+      <p class="hint" id="sdState"></p>
+      <div class="btn-row"><button class="btn sm" data-action="streamdeck:install" id="sdInstall"><i data-icon="download"></i><span></span></button><a class="btn sm" href="/api/streamdeck-plugin" download><span>${esc(t('integ.sdDownload'))}</span></a></div>
+      <h3 class="sub">${esc(t('integ.api'))}</h3>
+      <p class="hint">${esc(t('integ.apiHint'))}</p>
+      <div class="url-row"><code id="apiUrl"></code><button class="btn icon sm" data-copy-from="apiUrl" title="${esc(t('common.copy'))}"><i data-icon="copy"></i></button></div>
+      <p class="hint">${esc(t('integ.companion'))}</p>`;
+  }
+
+  function renderIntegrations() {
+    const st = $('#sdState');
+    if (!st) return;
+    const sd = (live.app && live.app.streamDeck) || {};
+    setText(st, sd.installed ? t('integ.sdInstalled') : sd.found ? t('integ.sdFound') : t('integ.sdMissing'));
+    const btn = $('#sdInstall');
+    btn.hidden = !IS_LOCAL || !sd.found;
+    setText(btn.querySelector('span'), sd.installed ? t('integ.sdUpdate') : t('integ.sdInstall'));
+    setText($('#apiUrl'), `${location.origin}/api/action`);
+  }
+
   function hotkeysHtml() {
     const rows = ACTIONS.map(
       (id) =>
@@ -557,6 +580,7 @@
       let body;
       if (sec.custom === 'network') body = networkHtml();
       else if (sec.custom === 'hotkeys') body = hotkeysHtml();
+      else if (sec.custom === 'integrations') body = integrationsHtml();
       else body = (sec.lead ? `<p class="lead">${esc(t(sec.lead))}</p>` : '') + sec.fields.map(fieldHtml).join('');
       return `<div class="card" id="${sec.id}"><div class="card-head"><h2>${esc(t(sec.title))}</h2></div>${body}${sec.extra || ''}</div>`;
     }).join('');
@@ -838,6 +862,7 @@
     renderPhase1();
     renderShow();
     renderFolder();
+    renderIntegrations();
     renderConn();
     renderNetwork();
     renderPhone();

@@ -28,9 +28,19 @@ jobs:
 
       - name: Syntax check
         shell: bash
-        run: for f in main.js server/*.js public/*.js tools/*.js; do node --check "$f"; done
+        run: for f in main.js server/*.js public/*.js tools/*.js integrations/streamdeck/*.sdPlugin/bin/*.js; do node --check "$f"; done
 
       - name: Build & publish
         run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Stream Deck plugin
+        run: npm run pack:streamdeck
+
+      - name: Attach Stream Deck plugin to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: gh release upload "$GITHUB_REF_NAME" dist/Glanceline.streamDeckPlugin --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
