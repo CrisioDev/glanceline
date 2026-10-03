@@ -129,6 +129,7 @@ h3.sub {
 }
 h3.sub.first { margin-top: 0; }
 
+[hidden] { display: none !important; } /* sonst gewinnt z. B. .blackout-btn { display: inline-flex } */
 a.btn { text-decoration: none; }
 .btn {
   display: inline-flex;

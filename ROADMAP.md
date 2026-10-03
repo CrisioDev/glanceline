@@ -81,11 +81,11 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| 3.1 | ✅ **Beta since Oct 2026.** Feasibility spike done: 3 % CPU, about 1 s delay, robust to ad-libs and skipped sentences. Next: real-microphone tuning, smoother look-ahead scrolling, more languages. <br>**Offline voice tracking**, built in four steps: <br>1. Local speech recognition with sherpa-onnx, works on any GPU or CPU, starting with German and English <br>2. Fuzzy matching against the script, ignoring `[cues]` <br>3. Waits during ad-libs <br>4. Dims text that has already been read <br>*Start with a feasibility spike.* | The #1 complaint about the Elgato Prompter (about 80 threads); tools in the browser need Chrome and Google | L |
-| 3.2 | **macOS build** (PowerPoint/Keynote via AppleScript) | Repeated requests; the most popular OSS prompter is Mac-only | M–L |
-| 3.3 | **Multiple prompter outputs** with different content | Multi-camera and two-host setups | M |
-| 3.4 | **Google Slides / Keynote notes** | about 20 threads on presentations | M–L |
-| 3.5 | **Prompter standby/off** (detach the display in Windows, no wake-up after sleep) | about 56 threads on power; only command-line hacks exist today | M |
+| 3.1 | ✅ **Beta since Oct 2026.** Feasibility spike done: 3 % CPU, about 1 s delay, robust to ad-libs and skipped sentences. Smoother following done (glides within a line and bridges the recognizer delay: average distance to the spoken word 61 → 22 px), plus 26 more languages via an optional NVIDIA Nemotron 3.5 streaming model. Next: tuning with real microphones. <br>**Offline voice tracking**, built in four steps: <br>1. Local speech recognition with sherpa-onnx, works on any GPU or CPU, starting with German and English <br>2. Fuzzy matching against the script, ignoring `[cues]` <br>3. Waits during ad-libs <br>4. Dims text that has already been read <br>*Start with a feasibility spike.* | The #1 complaint about the Elgato Prompter (about 80 threads); tools in the browser need Chrome and Google | L |
+| 3.2 | ✅ **macOS build** (PowerPoint/Keynote via AppleScript) – built and smoke-tested on a real Mac in GitHub Actions; unsigned; Keynote/PowerPoint bridge not yet tried with the real apps | Repeated requests; the most popular OSS prompter is Mac-only | M–L |
+| 3.3 | ✅ **Multiple prompter outputs** with different content | Multi-camera and two-host setups | M |
+| 3.4 | ✅ **Google Slides / Keynote notes** – Google Slides via a Chrome extension, Keynote via the macOS bridge | about 20 threads on presentations | M–L |
+| 3.5 | ✅ **Prompter standby/off** (detach the display in Windows, no wake-up after sleep) | about 56 threads on power; only command-line hacks exist today | M |
 
 ## Not planned
 

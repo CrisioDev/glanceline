@@ -20,9 +20,9 @@ Umschalten geht per Klick oder globalem Hotkey. Auf Wunsch liegt dein eigenes Ka
 | Modus | Was auf dem Prompter erscheint |
 |---|---|
 | **Chat** | **Twitch, YouTube und Kick** in einem Chat, anonym gelesen (kein Login, kein API-Key), mit Plattform-Symbolen und Zuschauerzahlen: <br>• YouTube-Super-Chats, Mitgliedschaften und Geschenke; Kick-Abos, Geschenke, Hosts und Kicks <br>• Optionaler Twitch-Login für Follows, alle Kanalpunkte-Einlösungen, Hype Trains, Umfragen, Vorhersagen und Werbepausen (mit Countdown auf dem Prompter) <br>• Emotes von Twitch, **7TV**, BTTV und FFZ, inklusive Zero-Width-Emotes <br>• **7TV live**: neue oder entfernte Emotes erscheinen sofort <br>• Subs, Gift-Subs, Raids, Bits und @Erwähnungen hervorgehoben <br>• Kanalpunkte-Nachrichten, Erst- und Wiederkehrer, Shared Chat markiert <br>• Chat per Hotkey **pausieren und zurückspulen** <br>• Filter für Bots und !Befehle |
-| **Skript** | Teleprompter, der **deiner Stimme folgen** kann – offline, ohne Grafikkarte, Deutsch/Englisch/Französisch/Spanisch. Er wartet, wenn du abschweifst, und holt auf, wenn du etwas überspringst. Außerdem: <br>• Lesezeile und Countdown <br>• Tempo-Regelung <br>• Markdown-Abschnitten, zu denen du per Hotkey springst <br>• Regie-Schildern wie `[Pause]` <br>• **Clicker & Fußpedal** (Bild↑/Bild↓ oder beliebige Tasten) <br>• **Einschübe**: ein Hotkey schiebt ein kurzes Skript dazwischen (Raid-Dank, Werbung) und springt danach an die alte Stelle zurück <br>• Rechts-nach-links-Schrift und Rückwärtslauf <br>• **Run of Show**: Zielzeiten je Abschnitt (`## Intro {2:00}`), Vorsprung/Rückstand und Show-Countdown <br>• **Import** von Word (.docx), Markdown und Text, Einfügen aus Word oder Google Docs mit Formatierung, oder ein **verknüpfter Ordner**, der beim Bearbeiten in Obsidian, VS Code oder Word live synchron bleibt |
+| **Skript** | Teleprompter, der **deiner Stimme folgen** kann – offline, ohne Grafikkarte, Deutsch/Englisch/Französisch/Spanisch und mit einem optionalen größeren Modell 26 weitere Sprachen. Er gleitet flüssig mit, statt zeilenweise zu springen. Er wartet, wenn du abschweifst, und holt auf, wenn du etwas überspringst. Außerdem: <br>• Lesezeile und Countdown <br>• Tempo-Regelung <br>• Markdown-Abschnitten, zu denen du per Hotkey springst <br>• Regie-Schildern wie `[Pause]` <br>• **Clicker & Fußpedal** (Bild↑/Bild↓ oder beliebige Tasten) <br>• **Einschübe**: ein Hotkey schiebt ein kurzes Skript dazwischen (Raid-Dank, Werbung) und springt danach an die alte Stelle zurück <br>• Rechts-nach-links-Schrift und Rückwärtslauf <br>• **Run of Show**: Zielzeiten je Abschnitt (`## Intro {2:00}`), Vorsprung/Rückstand und Show-Countdown <br>• **Import** von Word (.docx), Markdown und Text, Einfügen aus Word oder Google Docs mit Formatierung, oder ein **verknüpfter Ordner**, der beim Bearbeiten in Obsidian, VS Code oder Word live synchron bleibt |
 | **OBS** | LIVE-/REC-Zeiten, Szene, FPS, CPU, Bitrate und Drops (über obs-websocket) |
-| **PowerPoint** | Notizen der **aktuellen Folie**, automatisch synchron, auch mit Presenter-Clicker. Die Schrift passt sich an, dazu Titel der nächsten Folie und Vortragstimer. Schaltet sich beim Start der Präsentation selbst ein. |
+| **Folien** | Notizen der **aktuellen Folie** aus **PowerPoint**, **Google Slides** (kleine Chrome-Erweiterung) oder **Keynote** (Mac), automatisch synchron, auch mit Presenter-Clicker. Die Schrift passt sich an, dazu Titel der nächsten Folie und Vortragstimer. Schaltet sich beim Start der Präsentation selbst ein. |
 | **Kamera** | Dein Kamerabild als Kontrollmonitor |
 
 Außerdem:
@@ -32,6 +32,8 @@ Außerdem:
 - **Steuerung von überall:** Panel mit Live-Vorschau, Handy (QR-Code scannen, zum Startbildschirm hinzufügen), OBS-Dock, **globale Hotkeys**, MIDI-Controller oder das **Stream-Deck-Plugin** mit Live-Zustand auf den Tasten (Installation per Klick im Panel).
 - **Halten zum Scrollen:** Clicker, Pedal, Hotkey, Stream-Deck-Taste oder MIDI-Pad halten, und das Skript läuft flüssig weiter.
 - **Virtueller Prompter:** Keine Prompter-Hardware? Ein schwebendes Fenster unter deiner Webcam, das OBS, Zoom und Bildschirmfreigaben nicht sehen.
+- **Weitere Ausgaben:** ein zweiter Prompter, ein Monitor für Co-Host oder Kamerateam – jede Ausgabe zeigt den Hauptmodus oder einen festen Modus (z. B. den Chat, während du das Skript liest).
+- **Prompter aus:** Das Prompter-Display per Klick oder Hotkey abmelden, damit es dunkel bleibt, auch nach dem Ruhezustand des PCs – oder ihn nur anlassen, solange Glanceline läuft (Windows).
 - **Profile:** das Aussehen (Schriften, Größen, Tempo, Kamera, Timer) als „Stream“, „Vortrag“ oder „Aufnahme“ speichern und per Klick, Hotkey oder automatisch je Modus oder Skript wechseln.
 - **Lokale API** für Companion, Touch Portal und eigene Skripte – siehe [docs/API.md](docs/API.md).
 - **Blickkontakt-Hilfen:** Linsen-Fadenkreuz, schmale Textspalte, zentrierter Text. Jede installierte Schrift, OpenDyslexic, Hochkontrast und Software-Dimmer gegen Spiegelungen.
@@ -43,8 +45,8 @@ Außerdem:
 
 ## Voraussetzungen
 
-- **Windows 10/11.** PowerPoint läuft über Windows-COM, macOS ist geplant.
-- Optional: OBS Studio 28+ (obs-websocket ist eingebaut) und Microsoft PowerPoint.
+- **Windows 10/11** oder **macOS 12+** auf Apple Silicon. Der Mac-Build ist neu und unsigniert: beim ersten Start Rechtsklick auf die App → *Öffnen*. Unter Windows läuft PowerPoint über COM, auf dem Mac werden Keynote und PowerPoint per AppleScript gelesen (macOS fragt einmal nach der Erlaubnis).
+- Optional: OBS Studio 28+ (obs-websocket ist eingebaut), Microsoft PowerPoint, Keynote oder Chrome für Google Slides.
 
 ## Installation
 
