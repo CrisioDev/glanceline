@@ -1,11 +1,27 @@
 'use strict';
-// Installierte Systemschriften (Windows) – für die Schriftauswahl des Prompters.
+// Installierte Systemschriften (Windows, macOS) – für die Schriftauswahl des Prompters.
 const { execFile } = require('child_process');
 
 let cache = null;
 
 function systemFonts() {
   if (cache) return cache;
+  if (process.platform === 'darwin') {
+    // AppKit über JavaScript for Automation – liefert die Schriftfamilien als JSON
+    const jxa = "ObjC.import('AppKit'); JSON.stringify(ObjC.deepUnwrap($.NSFontManager.sharedFontManager.availableFontFamilies))";
+    cache = new Promise((resolve) => {
+      execFile('osascript', ['-l', 'JavaScript', '-e', jxa], { timeout: 20000, maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
+        let names = [];
+        try {
+          names = JSON.parse(String(out)).filter((n) => typeof n === 'string' && !n.startsWith('.'));
+        } catch {
+          cache = null;
+        }
+        resolve([...new Set(names)].sort((a, b) => a.localeCompare(b)));
+      });
+    });
+    return cache;
+  }
   if (process.platform !== 'win32') {
     cache = Promise.resolve([]);
     return cache;
