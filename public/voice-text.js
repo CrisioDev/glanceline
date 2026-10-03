@@ -24,7 +24,7 @@
     const words = [];
     const doc = rootEl.ownerDocument;
     const walker = doc.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (n.parentElement && n.parentElement.closest('.cue') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      acceptNode: (n) => (n.parentElement && n.parentElement.closest('.cue, .tgt') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
     });
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);

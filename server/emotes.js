@@ -140,6 +140,31 @@ function countsOf(lists) {
   };
 }
 
+// 7TV-Emotes für YouTube- oder Kick-Kanäle (7TV verknüpft Konten dieser Plattformen ebenfalls)
+async function loadSevenTvPlatform(platform, id) {
+  const errors = [];
+  const safe = async (label, fn) => {
+    try {
+      return await fn();
+    } catch (e) {
+      errors.push({ src: label, msg: e.message });
+      return [];
+    }
+  };
+  const [stvGlobal, stvChannel] = await Promise.all([
+    safe('stvGlobal', async () => {
+      const d = await getJson('https://7tv.io/v3/emote-sets/global');
+      return fromSevenTv(d && d.emotes);
+    }),
+    safe('stvChannel', async () => {
+      if (!id) return [];
+      const d = await getJson(`https://7tv.io/v3/users/${platform}/${encodeURIComponent(id)}`);
+      return d ? fromSevenTv(d.emote_set && d.emote_set.emotes) : [];
+    }),
+  ]);
+  return { lists: { stvGlobal, stvChannel }, errors };
+}
+
 // Einzelnes 7TV-Emote nachladen (falls ein Live-Update ohne Bilddaten kommt)
 async function fetchSevenTvEmote(id) {
   try {
@@ -149,4 +174,4 @@ async function fetchSevenTvEmote(id) {
   }
 }
 
-module.exports = { loadEmotes, buildMap, countsOf, fromSevenTv, fetchSevenTvEmote };
+module.exports = { loadEmotes, loadSevenTvPlatform, buildMap, countsOf, fromSevenTv, fetchSevenTvEmote };

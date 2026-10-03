@@ -33,6 +33,7 @@ add('voice.err.download', 'voice.js');
 ['forward', 'back', 'toggle'].forEach((c) => add(`clicker.${c}`, 'panel.js clicker'));
 ['p.noScript', 'p.emptyScript', 'p.chatNew'].forEach((k) => add(k, 'prompter.js'));
 add('err.cam.obs', 'prompter.js');
+['show.autoScript', 'show.autoStream', 'show.manual'].forEach((k) => add(k, 'panel.js renderShow'));
 
 let problems = 0;
 for (const [lang, dict] of Object.entries(STRINGS)) {

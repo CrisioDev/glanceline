@@ -42,7 +42,7 @@
   const canvas = $('camCanvas');
   const camMsg = $('camMsg');
   const toasts = $('toasts');
-  const st = { live: $('stLive'), rec: $('stRec'), center: $('stCenter'), clock: $('stClock') };
+  const st = { live: $('stLive'), rec: $('stRec'), center: $('stCenter'), clock: $('stClock'), delta: $('stDelta'), show: $('stShow') };
   const obsEl = { state: $('obsState'), time: $('obsTime'), rec: $('obsRec'), scene: $('obsScene'), stats: $('obsStats') };
 
   const SERIF = ['Cormorant Garamond', 'Georgia'];
@@ -93,6 +93,19 @@
   // ---------------------------------------------------------------- Chat
 
   const BADGE = { broadcaster: '▶', moderator: '⚔', vip: '◆', subscriber: '★', founder: '★' };
+  // Plattform-Symbole – erscheinen, sobald mehr als eine Chat-Plattform eingerichtet ist
+  const PLAT = {
+    twitch: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4.3 3 3 6.4v13.1h4.4V22h2.5l2.5-2.5h3.6l4.9-4.9V3zm15 10.8-2.8 2.8h-4.4l-2.5 2.5v-2.5H5.9V4.6h13.4zM16.5 7.9h-1.6v4.8h1.6zm-4.4 0h-1.6v4.8h1.6z"/></svg>',
+    youtube: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.2 3.6z"/></svg>',
+    kick: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 2h7v6h2V5h2V2h7v7h-2v2h-2v2h2v2h2v7h-7v-3h-2v-3h-2v6H3z"/></svg>',
+  };
+  const multiPlatform = () => [settings.chat.channel, settings.chat.youtube, settings.chat.kick].filter(Boolean).length > 1;
+  function platEl(m) {
+    const p = PLAT[m.platform] ? m.platform : 'twitch';
+    const span = el('span', `plat p-${p}`);
+    span.innerHTML = PLAT[p];
+    return span;
+  }
   const TWITCH_COLORS = ['#FF0000', '#0000FF', '#00FF00', '#B22222', '#FF7F50', '#9ACD32', '#FF4500', '#2E8B57', '#DAA520', '#D2691E', '#5F9EA0', '#1E90FF', '#FF69B4', '#8A2BE2', '#00FF7F'];
   const colorCache = new Map();
 
@@ -165,11 +178,14 @@
   function msgEl(m) {
     const div = el('div', 'msg');
     div.dataset.id = m.id;
+    div.dataset.plat = m.platform || 'twitch';
     if (m.user && m.user.id) div.dataset.uid = m.user.id;
+    const plat = multiPlatform() ? platEl(m) : null;
 
     if (m.kind === 'event') {
       div.classList.add('event', `ev-${m.event.type}`);
       const head = el('div', 'ev-head');
+      if (plat) head.append(plat);
       head.append(el('span', 'ev-icon', m.event.icon), el('span', 'ev-text', evText(m.event)));
       div.append(head);
       if (m.tokens && m.tokens.length) {
@@ -182,6 +198,7 @@
 
     if (m.highlight) div.classList.add('hl');
     if (m.action) div.classList.add('action');
+    if (plat) div.append(plat);
     if (m.first) div.append(el('span', 'chip', t('p.new')));
     else if (m.returning) div.append(el('span', 'chip back', t('p.returning')));
     if (m.reward) div.append(el('span', 'chip reward', t('p.reward')));
@@ -285,8 +302,13 @@
   }
 
   function clearChat(c) {
-    const drop = (m) => (c.all ? true : c.userId ? m.kind === 'msg' && m.user.id === c.userId : m.id === c.msgId);
+    const ofPlatform = (m) => !c.platform || (m.platform || 'twitch') === c.platform;
+    const drop = (m) => (c.all ? ofPlatform(m) : c.userId ? m.kind === 'msg' && m.user.id === c.userId : m.id === c.msgId);
     for (let i = chatBuf.length - 1; i >= 0; i--) if (drop(chatBuf[i])) chatBuf.splice(i, 1);
+    if (c.all && c.platform) {
+      chatList.querySelectorAll(`.msg[data-plat="${CSS.escape(c.platform)}"]`).forEach((n) => n.remove());
+      return;
+    }
     if (c.all) {
       chatList.replaceChildren();
       return;
@@ -399,7 +421,9 @@
     sv.id = id;
     sv.body = body;
     sv.title = sc ? sc.title : '';
-    const html = sc ? S.renderScript(sc.body).html : '';
+    const rendered = sc ? S.renderScript(sc.body) : { html: '', sections: [] };
+    const html = rendered.html;
+    sv.sections = rendered.sections;
     scriptText.innerHTML = html || `<p class="empty">${S.esc(t(sc ? 'p.emptyScript' : 'p.noScript'))}</p>`;
     sv.wordEls = [];
     if (html) {
@@ -549,7 +573,9 @@
         if (idx !== sv.sectionIdx) {
           sv.sectionIdx = idx;
           const h = idx >= 0 ? scriptText.querySelector(`[data-sec="${idx}"]`) : null;
-          if (h) S.api('/api/report', { kind: 'section', index: idx, title: h.textContent.trim() }).catch(() => {});
+          const sec = sv.sections && sv.sections[idx];
+          const title = sec ? sec.title.replace(/\*\*|==|[*[\]]/g, '').trim() : '';
+          if (h) S.api('/api/report', { kind: 'section', index: idx, title }).catch(() => {});
         }
       }
       if (sv.playing && !counting && dir < 0 && sv.pos <= 0) {
@@ -673,12 +699,10 @@
 
   function centerText() {
     const m = live.mode;
-    if (m === 'chat') {
-      const tw = live.twitch || {};
-      if (!tw.channel) return t('mode.chat');
-      return tw.joined ? `#${tw.channel}` : `#${tw.channel} · ${t('p.connecting')}`;
-    }
+    if (m === 'chat') return chatCenter();
     if (m === 'script' && live.insert) return `↪ ${t('p.insert')}: ${sv.title}`;
+    const ros = m === 'script' ? scheduleNow() : null;
+    if (ros) return ros.target ? `§ ${ros.title} · ${S.fmtDur(ros.inSec)} / ${S.fmtDur(ros.target)}` : `§ ${ros.title} · ${S.fmtDur(ros.inSec)}`;
     if (m === 'script') {
       const title = sv.title || t('mode.script');
       if (voiceOn()) {
@@ -704,8 +728,57 @@
     return '';
   }
 
+  // Statuszeile im Chat-Modus: Kanäle und Zuschauerzahlen aller Plattformen
+  function chatCenter() {
+    const tw = live.twitch || {};
+    const yt = live.youtube || {};
+    const kk = live.kick || {};
+    const num = (n) => Number(n).toLocaleString(locale);
+    const items = [];
+    if (tw.channel) items.push({ name: `#${tw.channel}`, short: 'Twitch', viewers: tw.joined ? tw.viewers : null, wait: !tw.joined });
+    if (yt.state && yt.state !== 'off') {
+      items.push({ name: yt.channel, short: 'YouTube', viewers: yt.state === 'live' ? yt.viewers : null, off: yt.state === 'offline', bad: yt.state === 'error', wait: yt.state === 'searching' });
+    }
+    if (kk.state && kk.state !== 'off') {
+      items.push({ name: `kick/${kk.channel}`, short: 'Kick', viewers: kk.live ? kk.viewers : null, off: kk.connected && !kk.live, bad: kk.state === 'error', wait: !kk.connected && kk.state !== 'error' });
+    }
+    if (!items.length) return t('mode.chat');
+    const one = items.length === 1;
+    const parts = items.map((i) => {
+      const label = one ? i.name : i.short;
+      if (i.viewers != null) return one ? `${label} · 👁 ${num(i.viewers)}` : `${label} ${num(i.viewers)}`;
+      if (i.bad) return `${label} ⚠`;
+      if (i.wait) return one ? `${label} · ${t('p.connecting')}` : `${label} …`;
+      if (i.off) return `${label} · ${t('p.offline')}`;
+      return label;
+    });
+    const counted = items.filter((i) => i.viewers != null);
+    if (counted.length > 1) parts.unshift(`👁 ${num(counted.reduce((n, i) => n + i.viewers, 0))}`);
+    return parts.join('  ·  ');
+  }
+
+  // Zeitplan des aktiven Skripts (null, wenn keine Zielzeiten gesetzt sind)
+  function scheduleNow() {
+    const sec = live.section;
+    if (!sec || !live.show || sec.id !== sv.id || !sv.sections) return null;
+    return S.runOfShow(sv.sections, sec, S.showClock(live.show, settings.timers, serverNow()).elapsed);
+  }
+
+  function tickTimers() {
+    const clock = S.showClock(live.show || { running: false, acc: 0, startedAt: 0 }, settings.timers, serverNow());
+    if (!settings.timers.show || !clock.started) setPill(st.show, 'hidden', '');
+    else if (clock.left == null) setPill(st.show, 'off', `⏱ ${S.fmtDur(clock.elapsed)}`);
+    else if (clock.left < 0) setPill(st.show, 'over', `⏱ ${S.fmtSigned(-clock.left)}`);
+    else setPill(st.show, clock.left <= settings.timers.warn * 60000 ? 'warn' : 'off', `⏱ ${S.fmtDur(clock.left)}`);
+
+    const ros = live.mode === 'script' && !live.insert ? scheduleNow() : null;
+    if (!ros || Math.abs(ros.delta) < 1000) setPill(st.delta, ros ? 'ahead' : 'hidden', ros ? '±0:00' : '');
+    else setPill(st.delta, ros.delta > 0 ? 'behind' : 'ahead', S.fmtSigned(ros.delta));
+  }
+
   function tickStatus() {
     if (!live || !settings) return;
+    tickTimers();
     const o = live.obs || {};
     const since = obsSince();
     if (!o.connected) setPill(st.live, 'na', 'OBS –');
