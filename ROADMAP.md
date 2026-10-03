@@ -73,7 +73,7 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 | 2.5 | **Twitch EventSub (optional login)** — follows, channel points, hype trains, polls | Needs OAuth (device-code flow); anonymous chat stays the default | M |
 | 2.6 | **Run-of-show timers** — target time per section with ahead/behind display, show countdown in a corner, reset by hotkey | QPrompt #70; Elgato threads ask for a show countdown | M |
 | 2.7 | **Profiles** — per-script or per-mode settings, quick switching | "settings are universal across modes … no profile functionality" | M |
-| 2.8 | **Hold-to-scroll** for clickers and pedals (scroll while the key is held) | Left over from 1.1; needs a low-level keyboard hook, because global shortcuts only report key presses | S |
+| 2.8 | ✅ **Hold-to-scroll** for clickers, pedals and hotkeys (scroll while the key is held) | Left over from 1.1. No keyboard hook needed after all: Windows auto-repeats held keys for global shortcuts too, so repeats faster than 100 ms mean “held” | S |
 
 ## Phase 3 — Big bets (v0.5+)
 
