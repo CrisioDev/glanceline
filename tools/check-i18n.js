@@ -36,6 +36,7 @@ add('err.cam.obs', 'prompter.js');
 ['show.autoScript', 'show.autoStream', 'show.manual'].forEach((k) => add(k, 'panel.js renderShow'));
 ['profiles.none', 'profiles.noneActive'].forEach((k) => add(k, 'panel.js renderProfiles'));
 add('profiles.defaultName', 'index.js profile:save');
+['midi.learning', 'midi.learningSpeed'].forEach((k) => add(k, 'panel.js renderMidi'));
 
 let problems = 0;
 for (const [lang, dict] of Object.entries(STRINGS)) {

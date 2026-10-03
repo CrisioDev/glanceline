@@ -108,6 +108,8 @@ function defaultSettings() {
     windowState: { virtual: null }, // Position des virtuellen Prompters
     // Profile: benannte Sätze von Darstellungs-Einstellungen, optional automatisch je Modus
     profiles: { list: [], active: '', byMode: {} },
+    // MIDI-Controller: Taste/Regler („note:1:60“, „cc:1:7“, „pc:1:3“) → Aktion
+    midi: { enabled: false, map: {} },
     voice: { enabled: false, lang: 'auto', micLabel: '', dimRead: true },
     ppt: { autoSwitch: true, maxFontSize: 54, minFontSize: 24, showNext: true, showTimer: true },
     obs: { host: '127.0.0.1', port: 4455, password: '' },
@@ -231,6 +233,10 @@ function clampRanges(s) {
   if (!['manual', 'script', 'stream'].includes(s.timers.start)) s.timers.start = 'script';
   for (const [scene, mode] of Object.entries(s.obsAuto.sceneModes)) if (!MODES.includes(mode)) delete s.obsAuto.sceneModes[scene];
   sanitizeProfiles(s);
+  const midiActions = new Set([...Object.keys(DEFAULT_HOTKEYS), 'script:speed']);
+  for (const [key, act] of Object.entries(s.midi.map)) {
+    if (!/^(note|cc|pc):\d{1,2}:\d{1,3}$/.test(key) || !midiActions.has(act)) delete s.midi.map[key];
+  }
 }
 
 const SAMPLE_SCRIPTS = {
