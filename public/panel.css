@@ -399,6 +399,8 @@ input[type="color"] { width: 54px; height: 36px; padding: 3px; border-radius: 10
 .director-state:empty { display: none; }
 .director-state b { color: var(--accent); }
 .director-card { margin-top: 16px; }
+.model-list li.multi-hint { display: block; font-size: 12px; line-height: 1.45; }
+.model-list li.multi { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
 .output-row { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto auto auto auto; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .output-row label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink-2); }
 .output-row label.switch-inline { flex-direction: row; align-items: center; }

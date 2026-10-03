@@ -682,6 +682,10 @@
       'outputs.on': 'On',
       'outputs.remove': 'Remove output',
       'outputs.empty': 'No extra outputs.',
+      'voice.multi': 'More languages',
+      'voice.multiShort': 'large model',
+      'voice.multiHint': 'One model for {list}. Larger download and noticeably more CPU (about a third of one core) – German, English, French and Spanish keep using their small models.',
+      'voice.missingMulti': 'The large model for {lang} and other languages is not installed yet (~475 MB).',
       'tray.stillRunningText': 'The prompter stays active. Use the icon in the system tray to reopen the controls or quit Glanceline.',
     },
 
@@ -1359,6 +1363,10 @@
       'outputs.on': 'An',
       'outputs.remove': 'Ausgabe entfernen',
       'outputs.empty': 'Keine weiteren Ausgaben.',
+      'voice.multi': 'Weitere Sprachen',
+      'voice.multiShort': 'großes Modell',
+      'voice.multiHint': 'Ein Modell für {list}. Größerer Download und spürbar mehr Rechenlast (etwa ein Drittel eines Kerns) – Deutsch, Englisch, Französisch und Spanisch nutzen weiter ihre kleinen Modelle.',
+      'voice.missingMulti': 'Das große Modell für {lang} und weitere Sprachen ist noch nicht installiert (~475 MB).',
       'tray.stillRunningText': 'Der Prompter bleibt aktiv. Über das Symbol im Infobereich öffnest du die Steuerung wieder oder beendest Glanceline.',
     },
   };

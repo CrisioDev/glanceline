@@ -4,7 +4,8 @@ const { EventEmitter } = require('events');
 const { Worker } = require('worker_threads');
 const fs = require('fs');
 const path = require('path');
-const { norm } = require('../public/voice-text');
+const { norm, MULTI_LANGUAGES } = require('../public/voice-text');
+const { spawn } = require('child_process');
 const { VoiceTracker } = require('./voice-tracker');
 
 // Kroko-Streaming-Modelle (Banafo, CC-BY-SA) über den sherpa-onnx-Spiegel auf Hugging Face
@@ -15,6 +16,20 @@ const MODELS = {
   es: 'sherpa-onnx-streaming-zipformer-es-kroko-2025-08-06',
 };
 const FILES = ['tokens.txt', 'decoder.onnx', 'joiner.onnx', 'encoder.onnx'];
+// Mehrsprachig: NVIDIA Nemotron 3.5 ASR Streaming (OpenMDW-1.1) als sherpa-onnx-Export, 320-ms-Blöcke
+const MULTI = {
+  name: 'sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-320ms-int8-2026-06-11',
+  files: ['tokens.txt', 'decoder.int8.onnx', 'joiner.int8.onnx', 'encoder.int8.onnx'],
+};
+const multiUrl = () => `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MULTI.name}.tar.bz2`;
+const ALL_LANGUAGES = [...Object.keys(MODELS), ...MULTI_LANGUAGES];
+// Modell zu einer Sprache bzw. zu einer Modell-ID ('de' … oder 'multi')
+function modelInfo(langOrId) {
+  if (MODELS[langOrId]) return { id: langOrId, name: MODELS[langOrId], files: FILES, multi: false };
+  if (langOrId === 'multi' || MULTI_LANGUAGES.includes(langOrId)) return { id: 'multi', name: MULTI.name, files: MULTI.files, multi: true };
+  return null;
+}
+
 const modelUrl = (name, file) => `https://huggingface.co/csukuangfj/${name}/resolve/main/${file}`;
 // Im installierten Programm liegt der Worker entpackt neben app.asar
 const WORKER = path.join(__dirname, 'voice-worker.js').replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
@@ -32,15 +47,17 @@ class VoiceEngine extends EventEmitter {
   }
 
   modelPath(lang) {
-    return path.join(this.dir, MODELS[lang]);
+    const m = modelInfo(lang);
+    return m ? path.join(this.dir, m.name) : '';
   }
 
   hasModel(lang) {
-    return Boolean(MODELS[lang]) && FILES.every((f) => fs.existsSync(path.join(this.modelPath(lang), f)));
+    const m = modelInfo(lang);
+    return Boolean(m) && m.files.every((f) => fs.existsSync(path.join(this.dir, m.name, f)));
   }
 
   _refreshInstalled() {
-    this.status.installed = Object.keys(MODELS).filter((l) => this.hasModel(l));
+    this.status.installed = [...Object.keys(MODELS), 'multi'].filter((id) => this.hasModel(id));
   }
 
   _set(patch) {
@@ -50,7 +67,8 @@ class VoiceEngine extends EventEmitter {
 
   // Sprache wählen und – falls vorhanden – Modell laden
   async prepare(lang) {
-    if (!MODELS[lang]) {
+    const model = modelInfo(lang);
+    if (!model) {
       this._set({ state: 'error', error: 'voice.err.lang', lang });
       return false;
     }
@@ -73,7 +91,7 @@ class VoiceEngine extends EventEmitter {
       this._set({ state: 'error', error: e.message });
       this._stopWorker();
     });
-    worker.postMessage({ type: 'load', dir: this.modelPath(lang), threads: 2 });
+    worker.postMessage({ type: 'load', dir: this.modelPath(lang), files: model.files, language: model.multi ? lang : '', threads: 2 });
     return true;
   }
 
@@ -121,8 +139,10 @@ class VoiceEngine extends EventEmitter {
 
   // Modell herunterladen (je Datei mit Fortschritt; .part → umbenennen, damit Abbrüche nichts halb liegen lassen)
   async download(lang) {
-    if (!MODELS[lang] || this.status.state === 'downloading') return;
-    const name = MODELS[lang];
+    const model = modelInfo(lang);
+    if (!model || this.status.state === 'downloading') return;
+    if (model.multi) return this._downloadMulti(lang);
+    const name = model.name;
     const dir = this.modelPath(lang);
     fs.mkdirSync(dir, { recursive: true });
     this._set({ state: 'downloading', lang, progress: 0, error: '' });
@@ -165,13 +185,56 @@ class VoiceEngine extends EventEmitter {
     }
   }
 
+  // Mehrsprachenmodell: ein Archiv (~475 MB) laden und mit dem tar des Betriebssystems entpacken
+  async _downloadMulti(lang) {
+    fs.mkdirSync(this.dir, { recursive: true });
+    const archive = path.join(this.dir, `${MULTI.name}.tar.bz2`);
+    this._set({ state: 'downloading', lang, progress: 0, error: '' });
+    try {
+      if (!fs.existsSync(archive)) {
+        const res = await fetch(multiUrl(), { redirect: 'follow' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const total = Number(res.headers.get('content-length')) || 475e6;
+        const out = fs.createWriteStream(`${archive}.part`);
+        let done = 0;
+        let lastEmit = 0;
+        for await (const chunk of res.body) {
+          if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
+          done += chunk.length;
+          if (Date.now() - lastEmit > 250) {
+            lastEmit = Date.now();
+            this._set({ progress: Math.min(0.95, (done / total) * 0.95) });
+          }
+        }
+        await new Promise((resolve, reject) => out.end((e) => (e ? reject(e) : resolve())));
+        fs.renameSync(`${archive}.part`, archive);
+      }
+      this._set({ progress: 0.96 });
+      const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+      await new Promise((resolve, reject) => {
+        const p = spawn(tar, ['-xjf', archive, '-C', this.dir], { windowsHide: true, stdio: 'ignore' });
+        p.on('error', reject);
+        p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`tar ${code}`))));
+      });
+      fs.rmSync(archive, { force: true });
+      fs.rmSync(path.join(this.dir, MULTI.name, 'test_wavs'), { recursive: true, force: true });
+      this._refreshInstalled();
+      if (!this.hasModel('multi')) throw new Error('model files missing');
+      this._set({ state: 'off', progress: 1 });
+      this.emit('downloaded', lang);
+    } catch (e) {
+      this._set({ state: 'error', error: `voice.err.download|${e.message}` });
+    }
+  }
+
   deleteModel(lang) {
-    if (!MODELS[lang]) return;
-    if (this.loadedLang === lang) this.stop();
-    fs.rmSync(this.modelPath(lang), { recursive: true, force: true });
+    const model = modelInfo(lang);
+    if (!model) return;
+    if (this.loadedLang && modelInfo(this.loadedLang).id === model.id) this.stop();
+    fs.rmSync(path.join(this.dir, model.name), { recursive: true, force: true });
     this._refreshInstalled();
     this._set({});
   }
 }
 
-module.exports = { VoiceEngine, VOICE_LANGUAGES: Object.keys(MODELS) };
+module.exports = { VoiceEngine, VOICE_LANGUAGES: ALL_LANGUAGES, modelInfo };
