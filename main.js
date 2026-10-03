@@ -4,6 +4,7 @@
 // registriert die globalen Hotkeys und hängt sich in den Infobereich (Tray).
 const { app, BrowserWindow, Menu, Tray, dialog, globalShortcut, nativeImage, screen, session, shell } = require('electron');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const path = require('path');
 const { Glanceline } = require('./server');
 const { migrateLegacyData } = require('./server/paths');
@@ -47,8 +48,15 @@ if (!app.requestSingleInstanceLock()) {
 
 // Fenster schließen ≠ beenden: Glanceline läuft im Tray weiter
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => {
+let powerQuitDone = false;
+app.on('before-quit', (e) => {
   quitting = true;
+  // „Nur solange Glanceline läuft“: Prompter beim Beenden abmelden, dann wirklich beenden
+  if (core && core.settings.display.powerWithApp && prompterKind === 'prompter' && !powerQuitDone && !SNAPSHOT_DIR) {
+    e.preventDefault();
+    powerQuitDone = true;
+    prompterPower(false).finally(() => app.quit());
+  }
 });
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
@@ -76,6 +84,7 @@ async function boot() {
     updateTrayMenu();
   });
   core.on('hotkeys', registerHotkeys);
+  core.on('prompterPower', (on) => prompterPower(on));
   // Skript-Ordner wählen und Dateien/Ordner im Explorer bzw. Standard-Editor öffnen
   core.on('pickFolder', async () => {
     const parent = panelWin && !panelWin.isDestroyed() ? panelWin : undefined;
@@ -129,7 +138,10 @@ async function boot() {
   else core.setAppInfo({ desktop: true, autostart: readAutostart() });
   createTray();
   registerHotkeys();
+  core.setPower({ standby: Boolean(core.settings.windowState.standby) });
   placePrompter();
+  // Prompter wurde mit Glanceline abgemeldet → beim Start wieder anmelden
+  if (core.settings.display.powerWithApp && core.settings.windowState.standby && !SNAPSHOT_DIR) prompterPower(true);
   if (!process.argv.includes('--hidden')) showPanel();
   if (SNAPSHOT_DIR) runSnapshot(SNAPSHOT_DIR);
 }
@@ -282,6 +294,65 @@ function createPrompterWindow(kind) {
   return win;
 }
 
+// ---------------------------------------------------------------- Prompter aus/an (Standby)
+// Das Prompter-Display wird in Windows abgemeldet („Diese Anzeige trennen“): Er geht aus und
+// wacht auch nach dem Ruhezustand nicht von selbst auf. Der letzte Modus wird gespeichert.
+const DISPLAY_POWER = path.join(__dirname, 'server', 'display-power.ps1').replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+
+function displayPower(args) {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') {
+      resolve({ ok: false, error: 'Windows only' });
+      return;
+    }
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', DISPLAY_POWER, ...args.map(String)], { windowsHide: true, timeout: 20000 }, (err, stdout) => {
+      try {
+        resolve(JSON.parse(String(stdout).trim().split(/\r?\n/).pop()));
+      } catch {
+        resolve({ ok: false, error: err ? err.message : 'no answer' });
+      }
+    });
+  });
+}
+
+async function prompterPower(want) {
+  const saved = core.settings.windowState.standby;
+  const isOff = Boolean(saved && saved.device);
+  const turnOn = want === undefined ? isOff : want;
+  if (turnOn === !isOff) return; // schon so
+  core.setPower({ busy: true, error: '' });
+  try {
+    if (turnOn) {
+      const r = await displayPower(['-cmd', 'on', '-device', saved.device, '-width', saved.width, '-height', saved.height, '-x', saved.x, '-y', saved.y, '-hz', saved.hz || 0]);
+      if (!r.ok) throw new Error(r.error || `code ${r.code}`);
+      core.patchSettings({ windowState: { standby: null } });
+      core.setPower({ standby: false });
+      setTimeout(placePrompter, 1500); // Windows braucht einen Moment, bis die Anzeige da ist
+    } else {
+      // Welches Windows-Display ist der Prompter? Über die echte Position zuordnen – nie den Hauptbildschirm.
+      const target = core.settings.display.target === 'virtual' ? null : findTarget();
+      if (!target || target.id === screen.getPrimaryDisplay().id) throw new Error('err.power.noPrompter');
+      const rect = screen.dipToScreenRect(null, target.bounds);
+      const list = await displayPower(['-cmd', 'list']);
+      const d = list.ok && list.displays.find((x) => x.attached && !x.primary && Math.abs(x.x - rect.x) <= 2 && Math.abs(x.y - rect.y) <= 2);
+      if (!d) throw new Error('err.power.notFound');
+      core.patchSettings({ windowState: { standby: { device: d.device, width: d.width, height: d.height, x: d.x, y: d.y, hz: d.hz } } });
+      core.setPower({ standby: true });
+      const r = await displayPower(['-cmd', 'off', '-device', d.device, '-x', d.x, '-y', d.y]);
+      if (!r.ok) {
+        core.patchSettings({ windowState: { standby: null } });
+        core.setPower({ standby: false });
+        throw new Error(r.error || `code ${r.code}`);
+      }
+    }
+  } catch (e) {
+    core.setPower({ error: e.message.startsWith('err.') ? e.message : `err.power.failed|${e.message}` });
+  } finally {
+    core.setPower({ busy: false });
+    updateTrayMenu();
+  }
+}
+
 function placePrompter() {
   if (!core) return;
   const displays = screen.getAllDisplays();
@@ -291,7 +362,9 @@ function placePrompter() {
   let target = virtual ? null : findTarget();
   // Nie den Hauptbildschirm randlos zukleistern
   if (target && target.id === screen.getPrimaryDisplay().id) target = null;
-  const kind = virtual ? 'virtual' : target ? 'prompter' : core.settings.display.testWindow ? 'test' : null;
+  // Abgemeldeter Prompter: kein Testfenster als Ersatz öffnen
+  const standby = Boolean(core.settings.windowState.standby);
+  const kind = virtual ? 'virtual' : target ? 'prompter' : core.settings.display.testWindow && !standby ? 'test' : null;
   const scale = (target || screen.getPrimaryDisplay()).scaleFactor || 1;
 
   if (kind !== prompterKind || (kind === 'test' && scale !== prompterScale)) {
@@ -514,6 +587,9 @@ function updateTrayMenu() {
       mode('ppt', t('mode.ppt')),
       mode('camera', t('mode.cameraLong')),
       { label: t('tray.blackout'), click: () => core.action({ type: 'blackout' }) },
+      ...(process.platform === 'win32' && (prompterKind === 'prompter' || core.settings.windowState.standby)
+        ? [{ label: core.settings.windowState.standby ? t('tray.powerOn') : t('tray.powerOff'), click: () => core.action({ type: 'prompter:power' }) }]
+        : []),
       {
         label: t('tray.passthrough'),
         type: 'checkbox',

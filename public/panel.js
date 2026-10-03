@@ -48,6 +48,7 @@
     send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
     insert: '<polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
     phone: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/>',
+    power: '<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>',
     upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
     folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
     link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
@@ -342,6 +343,7 @@
         { k: 'display.target', l: 'settings.display', type: 'select', dyn: 'displays' },
         { k: 'display.virtualOpacity', l: 'settings.virtualOpacity', type: 'range', min: 0.3, max: 1, step: 0.05, fmt: 'pct', h: 'settings.virtualHint', show: 'display.target=virtual' },
         { k: 'display.mirror', l: 'settings.mirror', type: 'toggle', h: 'settings.mirrorHint' },
+        ...(live && live.power && live.power.supported ? [{ k: 'display.powerWithApp', l: 'settings.powerWithApp', type: 'toggle', h: 'settings.powerWithAppHint' }] : []),
         { k: 'display.testWindow', l: 'settings.testWindow', type: 'toggle' },
         { k: 'display.statusBar', l: 'settings.statusBar', type: 'toggle' },
         { k: 'display.fontFamily', l: 'settings.font', type: 'select', dyn: 'fonts', h: 'settings.fontHint' },
@@ -506,7 +508,7 @@
     'script:toggle', 'script:slower', 'script:faster', 'view:back', 'view:forward',
     'script:prevSection', 'script:nextSection', 'script:restart', 'script:reverse', 'font:bigger', 'font:smaller', 'ppt:timerReset', 'voice:toggle',
     'passthrough', 'chat:pause', 'insert:1', 'insert:2', 'insert:3', 'insert:4', 'director:clear', 'show:toggle', 'show:reset',
-    'profile:next', 'profile:1', 'profile:2', 'profile:3', 'profile:4',
+    'profile:next', 'profile:1', 'profile:2', 'profile:3', 'profile:4', 'prompter:power',
   ];
   const VOICE_LANGS = ['de', 'en', 'fr', 'es'];
 
@@ -993,6 +995,7 @@
     renderCamCard();
     renderVoice();
     renderPhase1();
+    renderPower();
     renderShow();
     renderFolder();
     renderIntegrations();
@@ -1045,6 +1048,7 @@
     if (p.kind === 'prompter') out.push(chip('ok', 'Prompter'));
     else if (p.kind === 'test') out.push(chip('warn', t('chip.testWindow')));
     else if (p.kind === 'virtual') out.push(chip('ok', t('chip.virtual')));
+    else if (live.power && live.power.standby) out.push(chip('', t('chip.standby')));
     else if (live.clients.main) out.push(chip('ok', t('chip.prompterView')));
     else out.push(chip('bad', t('chip.noPrompter')));
     const tw = live.twitch || {};
@@ -1213,6 +1217,18 @@
       }
     }
     setHtml($('#showDetail'), parts.join(''));
+  }
+
+  // Prompter aus/an
+  function renderPower() {
+    const pw = live.power || {};
+    const btn = $('#powerBtn');
+    btn.hidden = !IS_LOCAL || !pw.supported || !(pw.standby || (live.prompter && live.prompter.kind === 'prompter'));
+    btn.disabled = Boolean(pw.busy);
+    btn.classList.toggle('active', Boolean(pw.standby));
+    setText(btn.querySelector('span'), pw.busy ? t('live.powerBusy') : pw.standby ? t('live.powerOn') : t('live.powerOff'));
+    if (pw.error && pw.error !== renderPower.lastError) note(t(pw.error));
+    renderPower.lastError = pw.error;
   }
 
   function renderPhase1() {

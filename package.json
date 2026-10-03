@@ -39,6 +39,7 @@
     ],
     "asarUnpack": [
       "server/ppt-bridge.ps1",
+      "server/display-power.ps1",
       "server/voice-worker.js",
       "node_modules/sherpa-onnx-node/**",
       "node_modules/sherpa-onnx-win-x64/**"
