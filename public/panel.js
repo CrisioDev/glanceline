@@ -268,7 +268,7 @@
       return [...bundled, ...systemFontList.filter((f) => !names.has(f)).map((f) => [f, f])];
     },
     scriptsOpt: () => [['', t('inserts.none')], ...((scripts && scripts.items) || []).map((i) => [i.id, i.title || t('scripts.untitled')])],
-    voiceLangs: () => [['auto', t('voice.langAuto')], ...VOICE_LANGS.map((l) => [l, t(`lang.${l}`)])],
+    voiceLangs: () => [['auto', t('voice.langAuto')], ...VOICE_LANGS.map((l) => [l, t(`lang.${l}`)]), ...MULTI_LANGS.map((l) => [l, `${langName(l)} · ${t('voice.multiShort')}`]).sort((a, b) => a[1].localeCompare(b[1], lang))],
     cameras: () => [['', t('settings.cameraAuto')], ...((live && live.camera.devices) || []).map((d) => [d.label, d.label])],
     obsSources: () => [
       ['', t('settings.obsSourcePick')],
@@ -512,6 +512,16 @@
     'profile:next', 'profile:1', 'profile:2', 'profile:3', 'profile:4', 'prompter:power',
   ];
   const VOICE_LANGS = ['de', 'en', 'fr', 'es'];
+  const MULTI_LANGS = window.GlancelineVoiceText ? window.GlancelineVoiceText.MULTI_LANGUAGES : [];
+  // Sprachnamen der weiteren Sprachen vom Browser (Intl), damit nicht jede Sprache übersetzt werden muss
+  const langName = (code) => {
+    if (VOICE_LANGS.includes(code)) return t(`lang.${code}`);
+    try {
+      return new Intl.DisplayNames([lang], { type: 'language' }).of(code);
+    } catch {
+      return code;
+    }
+  };
 
   function fieldHtml(f) {
     const id = `f_${f.k.replace(/\./g, '_')}`;
@@ -1317,13 +1327,13 @@
   function renderVoice() {
     const v = live.voice || {};
     const on = settings.voice.enabled;
-    const langName = t(`lang.${v.lang || 'en'}`);
+    const voiceLangName = langName(v.lang || 'en');
     let html = '';
     if (v.state === 'downloading') {
       const pct = Math.round((v.progress || 0) * 100);
       html = `${esc(t('voice.downloading', { pct }))}<div class="progress"><i style="width:${pct}%"></i></div>`;
     } else if (on) {
-      if (v.state === 'missing') html = `${esc(t('voice.missing', { lang: langName }))}<br><button class="btn sm primary" data-action="voice:download"><i data-icon="download"></i>${esc(t('voice.download'))}</button>`;
+      if (v.state === 'missing') html = `${esc(t(MULTI_LANGS.includes(v.lang) ? 'voice.missingMulti' : 'voice.missing', { lang: voiceLangName }))}<br><button class="btn sm primary" data-action="voice:download"><i data-icon="download"></i>${esc(t('voice.download'))}</button>`;
       else if (v.state === 'loading') html = esc(t('voice.loading'));
       else if (v.state === 'error') html = `<span class="bad">${esc(t(v.error))}</span>`;
       else if (v.state === 'ready') {
@@ -1348,7 +1358,13 @@
           ? `<button class="btn sm" data-action="voice:delete" data-lang="${l}"><i data-icon="trash"></i>${esc(t('voice.remove'))}</button>`
           : `<button class="btn sm" data-action="voice:download" data-lang="${l}"${v.state === 'downloading' ? ' disabled' : ''}><i data-icon="download"></i>${esc(t('voice.get'))}</button>`;
         return `<li><b>${esc(t(`lang.${l}`))}</b><span class="${has ? '' : 'hint'}">${esc(has ? t('voice.installed') : '~70 MB')}</span><span class="push"></span>${btn}</li>`;
-      }).join(''));
+      }).join('') + (() => {
+        const has = inst.includes('multi');
+        const btn = has
+          ? `<button class="btn sm" data-action="voice:delete" data-lang="multi"><i data-icon="trash"></i>${esc(t('voice.remove'))}</button>`
+          : `<button class="btn sm" data-action="voice:download" data-lang="multi"${v.state === 'downloading' ? ' disabled' : ''}><i data-icon="download"></i>${esc(t('voice.get'))}</button>`;
+        return `<li class="multi"><b>${esc(t('voice.multi'))}</b><span class="${has ? '' : 'hint'}">${esc(has ? t('voice.installed') : '~475 MB')}</span><span class="push"></span>${btn}</li><li class="hint multi-hint">${esc(t('voice.multiHint', { list: MULTI_LANGS.map(langName).join(', ') }))}</li>`;
+      })());
       hydrateIcons(list);
     }
   }

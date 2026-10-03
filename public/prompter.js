@@ -461,12 +461,23 @@
   }
 
   // Zeile des nächsten zu sprechenden Worts auf die Lesezeile
-  function voiceTarget() {
-    const p = (live && live.voice && live.voice.pos) || 0;
-    const els = sv.wordEls;
-    if (!els.length) return null;
-    const el = els[Math.min(p, els.length - 1)];
-    return clamp(el.offsetTop - sv.padTop, 0, sv.max);
+  // Mitlaufen: Tempo schätzen, zwischen den Erkenner-Meldungen weiterführen, innerhalb der Zeile gleiten
+  const follow = new VT.VoiceFollow();
+  function voiceTarget(now) {
+    if (!sv.lines || !sv.lines.length) return null;
+    return clamp(VT.lineY(sv.lines, follow.predict(now)), 0, sv.max);
+  }
+
+  // Zeilen der Skriptwörter: { top, first, count } – nach jedem Layout neu
+  function measureLines() {
+    const lines = [];
+    sv.wordEls.forEach((el, i) => {
+      const top = el.offsetTop - sv.padTop;
+      const last = lines[lines.length - 1];
+      if (last && Math.abs(last.top - top) < 3) last.count++;
+      else lines.push({ top, first: i, count: 1 });
+    });
+    sv.lines = lines;
   }
 
   // Welches Wort steht gerade auf der Lesezeile? (nach manuellem Springen)
@@ -535,6 +546,7 @@
     sv.headings = [...scriptText.querySelectorAll('[data-sec]')].map((n) => Math.max(0, n.offsetTop - padTop));
     sv.pos = frac * sv.max;
     sv.targetPos = Math.min(sv.targetPos, sv.max);
+    measureLines();
   }
 
   function setPlaying(v) {
@@ -630,16 +642,16 @@
     const speed = settings ? settings.script.speed : 0;
 
     if (IS_MAIN) {
-      const follow = voiceOn() && sv.playing;
+      const followVoice = voiceOn() && sv.playing;
       const dir = (live && live.script.dir) || 1;
-      if (sv.playing && !counting && !follow) sv.pos += speed * dt * dir;
+      if (sv.playing && !counting && !followVoice) sv.pos += speed * dt * dir;
       if (sv.holdDir && now < sv.holdUntil) sv.pos += Math.max(320, speed * 4) * dt * sv.holdDir;
       else if (sv.holdDir) sv.holdDir = 0;
-      if (follow && !sv.tween && now > sv.voiceManualUntil) {
-        const target = voiceTarget();
+      if (followVoice && !sv.tween && now > sv.voiceManualUntil) {
+        const target = voiceTarget(now);
         if (target != null) {
           const diff = target - sv.pos;
-          sv.pos += Math.abs(diff) < 0.5 ? diff : diff * Math.min(1, dt * 4);
+          sv.pos += Math.abs(diff) < 0.5 ? diff : diff * Math.min(1, dt * 3);
         }
       }
       if (sv.voiceResync && !sv.tween) {
@@ -1086,6 +1098,7 @@
     root.classList.toggle('blackout', Boolean(l.blackout));
 
     // Weitere Ausgaben haben oft eine andere Größe → Position anteilig übernehmen
+    if (l.voice && l.voice.pos !== follow.pos) follow.update(l.voice.pos || 0, Date.now());
     if (!IS_MAIN) sv.targetPos = OUTPUT_ID ? (l.script.max > 0 ? (l.script.pos / l.script.max) * sv.max : 0) : l.script.pos;
     if (l.script.playing !== sv.livePlaying) {
       sv.livePlaying = l.script.playing;

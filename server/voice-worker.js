@@ -8,17 +8,19 @@ let recognizer = null;
 let stream = null;
 let finalText = '';
 
-function load(dir, threads) {
+function load(dir, threads, files, language) {
+  const f = files || ['tokens.txt', 'decoder.onnx', 'joiner.onnx', 'encoder.onnx'];
+  const pick = (prefix) => path.join(dir, f.find((x) => x.startsWith(prefix)));
   sherpa = sherpa || require('sherpa-onnx-node');
   recognizer = new sherpa.OnlineRecognizer({
     featConfig: { sampleRate: 16000, featureDim: 80 },
     modelConfig: {
       transducer: {
-        encoder: path.join(dir, 'encoder.onnx'),
-        decoder: path.join(dir, 'decoder.onnx'),
-        joiner: path.join(dir, 'joiner.onnx'),
+        encoder: pick('encoder'),
+        decoder: pick('decoder'),
+        joiner: pick('joiner'),
       },
-      tokens: path.join(dir, 'tokens.txt'),
+      tokens: pick('tokens'),
       numThreads: threads,
       provider: 'cpu',
       debug: 0,
@@ -30,14 +32,18 @@ function load(dir, threads) {
     rule3MinUtteranceLength: 20,
   });
   stream = recognizer.createStream();
+  // Mehrsprachenmodell: Sprache fest vorgeben statt automatisch erkennen
+  if (language) stream.setOption('language', language);
+  streamLanguage = language || '';
   finalText = '';
 }
+let streamLanguage = '';
 
 parentPort.on('message', (msg) => {
   try {
     if (msg.type === 'load') {
       const t0 = Date.now();
-      load(msg.dir, msg.threads || 2);
+      load(msg.dir, msg.threads || 2, msg.files, msg.language);
       parentPort.postMessage({ type: 'ready', ms: Date.now() - t0 });
     } else if (msg.type === 'audio' && recognizer) {
       // Mikrofon liefert meist 48 kHz – sherpa-onnx rechnet selbst auf 16 kHz um
@@ -48,10 +54,12 @@ parentPort.on('message', (msg) => {
         if (text) finalText = `${finalText} ${text}`.trim().split(' ').slice(-60).join(' ');
         text = '';
         recognizer.reset(stream);
+        if (streamLanguage) stream.setOption('language', streamLanguage);
       }
       parentPort.postMessage({ type: 'text', final: finalText, partial: text });
     } else if (msg.type === 'reset' && recognizer) {
       recognizer.reset(stream);
+      if (streamLanguage) stream.setOption('language', streamLanguage);
       finalText = '';
     }
   } catch (e) {

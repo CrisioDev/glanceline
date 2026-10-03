@@ -45,6 +45,7 @@ const DEFAULT_HOTKEYS = Object.freeze({
 });
 
 const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
+const { LANGUAGES: VOICE_LANGS } = require('../public/voice-text');
 
 const newToken = () => crypto.randomBytes(12).toString('base64url');
 const newId = () => crypto.randomBytes(6).toString('hex');
@@ -248,7 +249,7 @@ function clampRanges(s) {
   s.library.folder = String(s.library.folder || '').trim().replace(/^"(.*)"$/, '$1');
   if (!s.general.token) s.general.token = newToken();
   if (s.general.language !== 'auto' && !LANGUAGES.includes(s.general.language)) s.general.language = 'auto';
-  if (!['auto', 'de', 'en', 'fr', 'es'].includes(s.voice.lang)) s.voice.lang = 'auto';
+  if (s.voice.lang !== 'auto' && !VOICE_LANGS.includes(s.voice.lang)) s.voice.lang = 'auto';
   if (!['left', 'center'].includes(s.script.align)) s.script.align = 'left';
   if (!['line', 'page'].includes(s.clicker.step)) s.clicker.step = 'line';
   if (!['manual', 'script', 'stream'].includes(s.timers.start)) s.timers.start = 'script';

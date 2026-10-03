@@ -11,8 +11,9 @@
   };
 
   function norm(word, lang) {
-    let s = String(word).toLowerCase().replace(/ß/g, 'ss').normalize('NFKD').replace(/[̀-ͯ]/g, '');
-    s = s.replace(/[^a-z0-9]/g, '');
+    // Akzente weg, Buchstaben aller Schriften behalten (Kyrillisch, Griechisch, Arabisch, Hangul …)
+    let s = String(word).toLowerCase().replace(/ß/g, 'ss').normalize('NFKD').replace(/\p{M}/gu, '');
+    s = s.replace(/[^\p{L}\p{N}]/gu, '');
     const list = NUMBERS[lang];
     if (/^\d+$/.test(s) && list && list[Number(s)]) s = norm(list[Number(s)], lang);
     return s;
@@ -51,7 +52,72 @@
     return words;
   }
 
-  const api = { norm, wrapWords, LANGUAGES: Object.keys(NUMBERS) };
+  // Flüssiges Mitlaufen: Der Erkenner meldet Wörter mit rund einer Sekunde Verzögerung und in Schüben.
+  // Aus den Meldungen wird das Sprechtempo geschätzt und die Position bis zur nächsten Meldung
+  // weitergeführt – gedeckelt, damit das Skript bei einer Pause oder beim Abschweifen stehen bleibt.
+  class VoiceFollow {
+    constructor({ maxLead = 2.5, horizon = 1.2 } = {}) {
+      this.maxLead = maxLead; // höchstens so viele Wörter über die letzte Meldung hinaus
+      this.horizon = horizon; // so lange (s) nach der letzten Meldung wird weitergeführt
+      this.reset(0, 0);
+    }
+
+    reset(pos, now) {
+      this.pos = pos;
+      this.at = now;
+      this.rate = 0; // Wörter pro Sekunde
+      this.shown = pos;
+    }
+
+    update(pos, now) {
+      if (pos === this.pos) return;
+      const d = pos - this.pos;
+      if (this.at && d > 0 && d <= 8) {
+        const dt = (now - this.at) / 1000;
+        if (dt > 0.12) {
+          const r = Math.min(6, d / dt);
+          this.rate = this.rate ? this.rate * 0.65 + r * 0.35 : r;
+        }
+      } else {
+        this.rate = 0; // Sprung (Abschnitt, Zurückspulen, übersprungener Satz)
+        this.shown = pos;
+      }
+      this.pos = pos;
+      this.at = now;
+    }
+
+    // Geschätzte Sprechposition (Wörter, mit Nachkommastellen); läuft nie spürbar rückwärts
+    predict(now) {
+      const dt = Math.max(0, (now - this.at) / 1000);
+      const p = this.pos + Math.min(Math.min(dt, this.horizon) * this.rate, this.maxLead);
+      if (p >= this.shown || this.shown - p > this.maxLead + 1) this.shown = p;
+      return this.shown;
+    }
+  }
+
+  // Senkrechte Position für eine Wortposition mit Nachkommastellen: innerhalb einer Zeile gleitend.
+  // lines: [{ top, first, count }] aufsteigend, aus den Wort-Spans ermittelt
+  function lineY(lines, p) {
+    if (!lines.length) return 0;
+    let lo = 0;
+    let hi = lines.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (lines[mid].first <= p) lo = mid;
+      else hi = mid - 1;
+    }
+    const L = lines[lo];
+    const next = lines[lo + 1];
+    const frac = Math.max(0, Math.min(1, (p - L.first) / L.count));
+    return next ? L.top + (next.top - L.top) * frac : L.top;
+  }
+
+  // Eigene, kleine Modelle (Kroko) und ein großes Mehrsprachenmodell (Nemotron) für weitere Sprachen.
+  // Nur Sprachen mit Leerzeichen zwischen den Wörtern – die Nachführung arbeitet wortweise.
+  const SINGLE_LANGUAGES = Object.keys(NUMBERS);
+  const MULTI_LANGUAGES = ['it', 'pt', 'nl', 'pl', 'sv', 'da', 'no', 'fi', 'cs', 'sk', 'sl', 'hr', 'hu', 'ro', 'bg', 'el', 'et', 'lv', 'lt', 'uk', 'ru', 'tr', 'ar', 'he', 'hi', 'vi'];
+
+  const api = { norm, wrapWords, VoiceFollow, lineY, LANGUAGES: [...SINGLE_LANGUAGES, ...MULTI_LANGUAGES], SINGLE_LANGUAGES, MULTI_LANGUAGES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GlancelineVoiceText = api;
 })(typeof window !== 'undefined' ? window : globalThis);

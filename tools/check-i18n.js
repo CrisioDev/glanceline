@@ -40,6 +40,7 @@ add('profiles.defaultName', 'index.js profile:save');
 add('p.adBreak', 'index.js adBreak');
 add('err.power.failed', 'main.js prompterPower');
 add('outputs.defaultName', 'index.js output:add');
+['voice.missing', 'voice.missingMulti'].forEach((k) => add(k, 'panel.js renderVoice'));
 
 let problems = 0;
 for (const [lang, dict] of Object.entries(STRINGS)) {

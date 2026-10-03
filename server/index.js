@@ -1061,10 +1061,10 @@ class Glanceline extends EventEmitter {
         this.patchSettings({ voice: { enabled: !s.voice.enabled } });
         break;
       case 'voice:download':
-        this.voice.download(VOICE_LANGUAGES.includes(a.lang) ? a.lang : this.voiceLang());
+        this.voice.download(VOICE_LANGUAGES.includes(a.lang) || a.lang === 'multi' ? a.lang : this.voiceLang());
         break;
       case 'voice:delete':
-        if (VOICE_LANGUAGES.includes(a.lang)) this.voice.deleteModel(a.lang);
+        if (VOICE_LANGUAGES.includes(a.lang) || a.lang === 'multi') this.voice.deleteModel(a.lang);
         break;
       case 'chat:demo':
         this._demoChat();
