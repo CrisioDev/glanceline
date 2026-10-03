@@ -108,6 +108,8 @@ function defaultSettings() {
     // Show-Timer: Laufzeit oder Countdown in der Statusleiste; startet von Hand, mit dem Skript oder mit dem Stream
     timers: { show: false, minutes: 0, start: 'script', warn: 2 },
     library: { folder: '' }, // Skript-Ordner, der live synchron gehalten wird
+    // Weitere Ausgaben: zweiter Prompter, Monitor für Co-Host oder Kamerateam – mit eigenem Modus
+    outputs: [],
     windowState: { virtual: null, standby: null }, // Position des virtuellen Prompters; abgemeldetes Prompter-Display
     // Profile: benannte Sätze von Darstellungs-Einstellungen, optional automatisch je Modus
     profiles: { list: [], active: '', byMode: {} },
@@ -156,7 +158,7 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // Bringt gespeicherte Werte in Form: fehlende Schlüssel ergänzen, falsche Typen zurücksetzen.
 // Listen aus Objekten statt Texten (werden gesondert geprüft, z. B. von sanitizeProfiles)
-const OBJECT_LISTS = new Set(['profiles.list']);
+const OBJECT_LISTS = new Set(['profiles.list', 'outputs']);
 
 function conform(target, defaults, prefix = '') {
   for (const [k, def] of Object.entries(defaults)) {
@@ -214,6 +216,21 @@ function sanitizeProfiles(s) {
   for (const [mode, id] of Object.entries(p.byMode)) if (!MODES.includes(mode) || !p.list.some((x) => x.id === id)) delete p.byMode[mode];
 }
 
+function sanitizeOutputs(s) {
+  const ids = new Set();
+  s.outputs = s.outputs
+    .filter((o) => isObj(o) && typeof o.id === 'string' && /^[a-z0-9]{1,16}$/.test(o.id) && !ids.has(o.id) && ids.add(o.id))
+    .slice(0, 4)
+    .map((o) => ({
+      id: o.id,
+      name: String(o.name || '').trim().slice(0, 40) || 'Output',
+      display: typeof o.display === 'string' && o.display ? o.display : 'window',
+      mode: ['follow', ...MODES].includes(o.mode) ? o.mode : 'follow',
+      mirror: Boolean(o.mirror),
+      enabled: o.enabled !== false,
+    }));
+}
+
 function clampRanges(s) {
   for (const [p, [min, max, int]] of Object.entries(RANGES)) {
     const keys = p.split('.');
@@ -237,6 +254,7 @@ function clampRanges(s) {
   if (!['manual', 'script', 'stream'].includes(s.timers.start)) s.timers.start = 'script';
   for (const [scene, mode] of Object.entries(s.obsAuto.sceneModes)) if (!MODES.includes(mode)) delete s.obsAuto.sceneModes[scene];
   sanitizeProfiles(s);
+  sanitizeOutputs(s);
   const midiActions = new Set([...Object.keys(DEFAULT_HOTKEYS), 'script:speed']);
   for (const [key, act] of Object.entries(s.midi.map)) {
     if (!/^(note|cc|pc):\d{1,2}:\d{1,3}$/.test(key) || !midiActions.has(act)) delete s.midi.map[key];

@@ -71,7 +71,7 @@ async function boot() {
   await core.start();
 
   // Kamera nur für die eigene, lokale Oberfläche freigeben
-  const isOwn = (url) => /^http:\/\/(127\.0\.0\.1|localhost):\d+/.test(url || '');
+  const isOwn = (url) => /^http:\/\/(127\.0\.0\.1|([a-z0-9-]+\.)?localhost):\d+/.test(url || '');
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
     // Kamera/Mikrofon und MIDI-Controller nur für die eigenen Seiten. Chromium fragt auch für MIDI ohne
     // SysEx inzwischen „midiSysex“ an; die Seite selbst fordert kein SysEx an.
@@ -122,6 +122,7 @@ async function boot() {
     registerHotkeys();
   });
   core.on('display', placePrompter);
+  core.on('outputs', syncOutputs);
   let lastBase = core.baseUrl();
   core.on('relisten', () => {
     // Nur bei geändertem Port neu laden – sonst verbinden sich die Seiten von selbst wieder
@@ -294,6 +295,67 @@ function createPrompterWindow(kind) {
   return win;
 }
 
+// ---------------------------------------------------------------- Weitere Ausgaben
+// Jede Ausgabe ist ein eigenes Fenster: randlos auf einem gewählten Bildschirm oder als normales Fenster.
+// Eigener Host je Ausgabe (out-<id>.localhost), damit der Zoom nicht mit dem Prompter geteilt wird.
+const outputWins = new Map();
+
+function syncOutputs() {
+  if (!core) return;
+  const list = core.settings.outputs.filter((o) => o.enabled);
+  for (const [id, win] of outputWins) {
+    if (!list.some((o) => o.id === id)) {
+      outputWins.delete(id);
+      if (!win.isDestroyed()) win.destroy();
+    }
+  }
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay().id;
+  const prompterBounds = prompterKind === 'prompter' && prompterWin && !prompterWin.isDestroyed() ? prompterWin.getBounds() : null;
+  for (const o of list) {
+    const d = displays.find((x) => String(x.id) === o.display);
+    // Nie den Hauptbildschirm und nicht den Bildschirm des Haupt-Prompters zukleistern
+    const usable = d && d.id !== primary && !(prompterBounds && prompterBounds.x === d.bounds.x && prompterBounds.y === d.bounds.y);
+    const kind = usable ? 'screen' : 'window';
+    let win = outputWins.get(o.id);
+    if (win && (win.isDestroyed() || win.glKind !== kind)) {
+      if (!win.isDestroyed()) win.destroy();
+      win = null;
+    }
+    if (!win) {
+      win = createOutputWindow(o, kind, usable ? d.scaleFactor : screen.getPrimaryDisplay().scaleFactor);
+      outputWins.set(o.id, win);
+    }
+    if (kind === 'screen') {
+      win.setBounds(d.bounds);
+      win.setAlwaysOnTop(true, 'screen-saver');
+    }
+    win.setTitle(`Glanceline – ${o.name}`);
+  }
+}
+
+function createOutputWindow(o, kind, scale) {
+  const common = { backgroundColor: '#000000', icon: WINDOW_ICON, show: false, title: `Glanceline – ${o.name}`, webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' } };
+  const win =
+    kind === 'screen'
+      ? new BrowserWindow({ ...common, frame: false, resizable: false, movable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, focusable: false, alwaysOnTop: true, hasShadow: false })
+      : new BrowserWindow({ ...common, width: Math.round(1024 / scale), height: Math.round(600 / scale), useContentSize: true, autoHideMenuBar: true });
+  win.glKind = kind;
+  if (kind === 'window') setTaskbarDetails(win);
+  const url = core.baseUrl().replace('127.0.0.1', `out-${o.id}.localhost`);
+  win.loadURL(`${url}/prompter?role=preview&output=${encodeURIComponent(o.id)}`);
+  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(1 / scale));
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.once('ready-to-show', () => (kind === 'screen' ? win.showInactive() : win.show()));
+  win.on('closed', () => {
+    if (outputWins.get(o.id) !== win) return;
+    outputWins.delete(o.id);
+    // Fenster von Hand geschlossen → Ausgabe ausschalten statt sofort wieder öffnen
+    if (!quitting && core) core.action({ type: 'output:update', id: o.id, patch: { enabled: false } });
+  });
+  return win;
+}
+
 // ---------------------------------------------------------------- Prompter aus/an (Standby)
 // Das Prompter-Display wird in Windows abgemeldet („Diese Anzeige trennen“): Er geht aus und
 // wacht auch nach dem Ruhezustand nicht von selbst auf. Der letzte Modus wird gespeichert.
@@ -384,6 +446,7 @@ function placePrompter() {
   applyZoom();
   core.setPrompterInfo({ kind: kind || 'none', display: target ? describeDisplay(target) : null });
   updateTrayMenu();
+  syncOutputs();
 }
 
 // Taskleisten-Pin eines laufenden Fensters soll Glanceline starten, nicht das nackte electron.exe
@@ -672,6 +735,10 @@ async function runSnapshot(dir) {
         // Tastendruck simulieren (für Clicker-Tests), z. B. sendkeys:{PGDN}
         require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-Command', `(New-Object -ComObject WScript.Shell).SendKeys('${step.slice(9)}')`], { windowsHide: true });
         await wait(1200);
+      } else if (step.startsWith('outshot:')) {
+        // Screenshot einer weiteren Ausgabe (Nummer in der Reihenfolge der Einstellungen)
+        const win = [...outputWins.values()][Number(step.slice(8)) || 0];
+        if (win && !win.isDestroyed()) await save(win, `output-${step.slice(8)}`);
       } else if (step.startsWith('scroll:')) {
         // scroll:sec-voice → Einstellungsabschnitt ins Bild holen und fotografieren
         await exec(panelWin, `document.getElementById('${step.slice(7)}').scrollIntoView({ block: 'start' })`);

@@ -8,6 +8,7 @@
   const ROLE = QUERY.get('role') === 'preview' ? 'preview' : 'main';
   const NO_MIC = QUERY.has('nomic'); // automatische Tests speisen Audio von außen ein
   const IS_MAIN = ROLE === 'main';
+  const OUTPUT_ID = QUERY.get('output') || ''; // weitere Ausgabe mit eigenem Modus
   const VIRTUAL = QUERY.get('virtual') === '1'; // schwebendes Fenster statt Strahlteiler – nie spiegeln
   if (VIRTUAL) document.documentElement.classList.add('virtual');
   const root = document.documentElement;
@@ -113,6 +114,16 @@
     if (m) S.api('/api/report', { kind: 'midi', ...m }).catch(() => {});
   }
 
+  function outputCfg() {
+    return OUTPUT_ID && settings ? settings.outputs.find((o) => o.id === OUTPUT_ID) || null : null;
+  }
+
+  // Was diese Anzeige zeigt: den Modus des Haupt-Prompters oder den festen Modus der Ausgabe
+  function viewMode() {
+    const o = outputCfg();
+    return o && o.mode !== 'follow' ? o.mode : live ? live.mode : 'chat';
+  }
+
   function applySettings() {
     const s = settings;
     const lang = window.GlancelineI18n.resolveLang(s.general.language);
@@ -141,7 +152,9 @@
     set('--dimmer', (1 - s.display.brightness).toFixed(2));
     root.classList.toggle('hc', s.display.highContrast);
     root.classList.toggle('crosshair', s.display.crosshair);
-    root.classList.toggle('mirror', s.display.mirror && !VIRTUAL);
+    const out = outputCfg();
+    root.classList.toggle('mirror', out ? out.mirror : s.display.mirror && !VIRTUAL);
+    if (out) document.body.dataset.mode = viewMode();
     root.classList.toggle('no-status', !s.display.statusBar);
     root.classList.toggle('no-guide', !s.script.showGuide);
     root.classList.toggle('selfie', s.camera.selfie);
@@ -320,7 +333,7 @@
     chatBuf.push(m);
     if (chatBuf.length > 300) chatBuf.shift();
     const toastWorthy = m.kind === 'event' && m.event.type !== 'emote'; // Emote-Änderungen nur im Chat
-    if (toastWorthy && live && live.mode !== 'chat' && !live.blackout && settings.chat.eventToasts) toast(m);
+    if (toastWorthy && live && viewMode() !== 'chat' && !live.blackout && settings.chat.eventToasts) toast(m);
     if (chatHeld()) {
       chatState.pending++;
       updateChatBadge();
@@ -778,7 +791,7 @@
   }
 
   function centerText() {
-    const m = live.mode;
+    const m = viewMode();
     if (m === 'chat') return chatCenter();
     if (m === 'script' && live.insert) return `↪ ${t('p.insert')}: ${sv.title}`;
     const ros = m === 'script' ? scheduleNow() : null;
@@ -851,7 +864,7 @@
     else if (clock.left < 0) setPill(st.show, 'over', `⏱ ${S.fmtSigned(-clock.left)}`);
     else setPill(st.show, clock.left <= settings.timers.warn * 60000 ? 'warn' : 'off', `⏱ ${S.fmtDur(clock.left)}`);
 
-    const ros = live.mode === 'script' && !live.insert ? scheduleNow() : null;
+    const ros = viewMode() === 'script' && !live.insert ? scheduleNow() : null;
     if (!ros || Math.abs(ros.delta) < 1000) setPill(st.delta, ros ? 'ahead' : 'hidden', ros ? '±0:00' : '');
     else setPill(st.delta, ros.delta > 0 ? 'behind' : 'ahead', S.fmtSigned(ros.delta));
   }
@@ -874,7 +887,7 @@
     renderDirector();
     setText(st.clock, new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }));
 
-    if (live.mode === 'obs') {
+    if (viewMode() === 'obs') {
       setText(obsEl.time, o.connected && o.streaming ? S.fmtDur(o.streamMs + since) : '');
       setText(obsEl.rec, o.connected && o.recording ? `● REC ${S.fmtDur(o.recordMs + (o.recordPaused ? 0 : since))}${o.recordPaused ? ` (${t('p.paused')})` : ''}` : '');
     }
@@ -902,7 +915,7 @@
 
   const cam = { seq: 0, obsSeq: 0, stream: null, key: '', pending: false, failedKey: '', obsRunning: false };
 
-  const camWanted = () => Boolean(settings && live) && !live.blackout && (settings.camera.enabled || live.mode === 'camera');
+  const camWanted = () => Boolean(settings && live) && !live.blackout && (settings.camera.enabled || viewMode() === 'camera');
 
   function reportCam(o) {
     S.api('/api/report', { kind: 'camera', ...o }).catch(() => {});
@@ -1069,10 +1082,11 @@
   function onLive(l) {
     live = l;
     clockOffset = l.now - Date.now();
-    document.body.dataset.mode = l.mode;
+    document.body.dataset.mode = viewMode();
     root.classList.toggle('blackout', Boolean(l.blackout));
 
-    if (!IS_MAIN) sv.targetPos = l.script.pos;
+    // Weitere Ausgaben haben oft eine andere Größe → Position anteilig übernehmen
+    if (!IS_MAIN) sv.targetPos = OUTPUT_ID ? (l.script.max > 0 ? (l.script.pos / l.script.max) * sv.max : 0) : l.script.pos;
     if (l.script.playing !== sv.livePlaying) {
       sv.livePlaying = l.script.playing;
       setPlaying(l.script.playing);

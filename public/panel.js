@@ -496,6 +496,7 @@
       ],
       extra: `<p class="hint" id="obsSettingsState"></p><h3 class="sub">${esc(t('obsAuto.scenes'))}</h3><p class="hint">${esc(t('obsAuto.scenesHint'))}</p><div id="sceneModes"></div>`,
     },
+    { id: 'sec-outputs', title: 'outputs.title', custom: 'outputs' },
     { id: 'sec-profiles', title: 'profiles.title', custom: 'profiles' },
     { id: 'sec-midi', title: 'midi.title', custom: 'midi' },
     { id: 'sec-network', title: 'settings.sec.network', custom: 'network' },
@@ -546,6 +547,38 @@
       <h3 class="sub">${esc(t('net.dock'))}</h3>
       <p class="hint">${esc(t('net.dockHint'))}</p>
       <div class="url-row"><code id="dockUrl"></code><button class="btn icon sm" data-copy-from="dockUrl" title="${esc(t('common.copy'))}"><i data-icon="copy"></i></button></div>`;
+  }
+
+  function outputsHtml() {
+    return `<p class="lead">${esc(t('outputs.lead'))}</p><div id="outputList"></div>
+      <div class="btn-row"><button class="btn" data-action="output:add"><i data-icon="plus"></i><span>${esc(t('outputs.add'))}</span></button></div>`;
+  }
+
+  function renderOutputs() {
+    const box = $('#outputList');
+    if (!box) return;
+    const list = settings.outputs;
+    const displays = [['window', t('outputs.window')], ...((live && live.displays) || []).filter((d) => !d.primary).map((d) => [d.id, `${d.label || t('settings.displayGeneric')} · ${d.width}×${d.height}`])];
+    const modes = [['follow', t('outputs.follow')], ...MODE_OPTIONS()];
+    const sig = JSON.stringify([list, displays, lang]);
+    if (box._sig === sig || box.contains(document.activeElement)) return;
+    box._sig = sig;
+    const sel = (field, id, opts, value) => `<select data-output-field="${field}" data-output-id="${esc(id)}">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    box.innerHTML = list.length
+      ? list
+          .map(
+            (o) => `<div class="output-row">
+              <input type="text" maxlength="40" value="${esc(o.name)}" data-output-field="name" data-output-id="${esc(o.id)}" aria-label="${esc(t('outputs.name'))}">
+              <label>${esc(t('outputs.display'))}${sel('display', o.id, displays.some(([v]) => v === o.display) ? displays : [...displays, [o.display, t('settings.unavailable', { name: o.display })]], o.display)}</label>
+              <label>${esc(t('outputs.mode'))}${sel('mode', o.id, modes, o.mode)}</label>
+              <label class="switch-inline"><span class="switch"><input type="checkbox" data-output-field="mirror" data-output-id="${esc(o.id)}"${o.mirror ? ' checked' : ''}><span class="knob"></span></span><span>${esc(t('live.mirror'))}</span></label>
+              <label class="switch-inline"><span class="switch"><input type="checkbox" data-output-field="enabled" data-output-id="${esc(o.id)}"${o.enabled ? ' checked' : ''}><span class="knob"></span></span><span>${esc(t('outputs.on'))}</span></label>
+              <button class="btn icon sm" data-output-remove="${esc(o.id)}" title="${esc(t('outputs.remove'))}"><i data-icon="x"></i></button>
+            </div>`,
+          )
+          .join('')
+      : `<p class="hint">${esc(t('outputs.empty'))}</p>`;
+    hydrateIcons(box);
   }
 
   function profilesHtml() {
@@ -715,6 +748,7 @@
       else if (sec.custom === 'hotkeys') body = hotkeysHtml();
       else if (sec.custom === 'integrations') body = integrationsHtml();
       else if (sec.custom === 'profiles') body = profilesHtml();
+      else if (sec.custom === 'outputs') body = outputsHtml();
       else if (sec.custom === 'midi') body = midiHtml();
       else body = (sec.lead ? `<p class="lead">${esc(t(sec.lead))}</p>` : '') + sec.fields.map(fieldHtml).join('');
       return `<div class="card" id="${sec.id}"><div class="card-head"><h2>${esc(t(sec.title))}</h2></div>${body}${sec.extra || ''}</div>`;
@@ -1000,6 +1034,7 @@
     renderFolder();
     renderIntegrations();
     renderProfiles();
+    renderOutputs();
     renderMidi();
     renderEventSub();
     renderConn();
@@ -1607,6 +1642,19 @@
     $('#folderOpen').hidden = !f.folder;
     $('#folderClear').hidden = !f.folder;
   }
+
+  // ---------- Weitere Ausgaben
+  document.addEventListener('change', (e) => {
+    const n = e.target;
+    if (!n.dataset || !n.dataset.outputField) return;
+    const field = n.dataset.outputField;
+    const value = n.type === 'checkbox' ? n.checked : n.value;
+    S.action('output:update', { id: n.dataset.outputId, patch: { [field]: value } }).catch(() => {});
+  });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-output-remove]');
+    if (b) S.action('output:remove', { id: b.dataset.outputRemove }).catch(() => {});
+  }, true);
 
   // ---------- MIDI
   document.addEventListener('click', (e) => {

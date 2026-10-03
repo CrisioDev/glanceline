@@ -364,7 +364,8 @@ class Glanceline extends EventEmitter {
   // Schutz vor fremden Webseiten im eigenen Browser (CSRF, DNS-Rebinding)
   _trusted(req, res) {
     const host = String(req.headers.host || '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
-    const hostOk = host === 'localhost' || host === '::1' || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+    // *.localhost löst Chromium immer lokal auf – weitere Ausgaben nutzen eigene Hosts (getrennter Zoom)
+    const hostOk = host === 'localhost' || host === '::1' || /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || /^[a-z0-9-]+\.localhost$/.test(host);
     let originOk = true;
     if (req.headers.origin) {
       try {
@@ -912,6 +913,18 @@ class Glanceline extends EventEmitter {
         }
         break;
       }
+      case 'output:add': {
+        const id = Math.random().toString(36).slice(2, 8);
+        const n = s.outputs.length + 1;
+        this.patchSettings({ outputs: [...s.outputs, { id, name: t(this.lang(), 'outputs.defaultName', { n }), display: 'window', mode: 'chat', mirror: false, enabled: true }] });
+        return { ok: true, id };
+      }
+      case 'output:update':
+        this.patchSettings({ outputs: s.outputs.map((o) => (o.id === a.id ? { ...o, ...(isObj(a.patch) ? a.patch : {}), id: o.id } : o)) });
+        break;
+      case 'output:remove':
+        this.patchSettings({ outputs: s.outputs.filter((o) => o.id !== a.id) });
+        break;
       case 'prompter:power':
         // Prompter-Display in Windows ab- bzw. anmelden (true = an, false = aus, ohne = umschalten)
         if (!L.power.busy) this.emit('prompterPower', typeof a.on === 'boolean' ? a.on : undefined);
@@ -1102,7 +1115,7 @@ class Glanceline extends EventEmitter {
 
   patchSettings(patch) {
     if (!isObj(patch)) return;
-    const watched = ['clicker', 'twitch.clientId', 'library.folder', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
+    const watched = ['clicker', 'outputs', 'twitch.clientId', 'library.folder', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
     const snap = (k) => JSON.stringify(getPath(this.settings, k));
     const before = Object.fromEntries(watched.map((k) => [k, snap(k)]));
 
@@ -1148,6 +1161,7 @@ class Glanceline extends EventEmitter {
     if (changed('library.folder')) this.folder.watch(this.settings.library.folder);
     if (changed('hotkeys') || changed('clicker')) this.emit('hotkeys');
     if (changed('display')) this.emit('display');
+    if (changed('outputs')) this.emit('outputs');
     if (changed('general.autostart')) this.emit('autostart');
     if (changed('general.language')) this.emit('language');
     if (changed('voice.enabled') || changed('voice.lang') || (changed('general.language') && this.settings.voice.lang === 'auto')) this._syncVoice();

@@ -39,6 +39,7 @@ add('profiles.defaultName', 'index.js profile:save');
 ['midi.learning', 'midi.learningSpeed'].forEach((k) => add(k, 'panel.js renderMidi'));
 add('p.adBreak', 'index.js adBreak');
 add('err.power.failed', 'main.js prompterPower');
+add('outputs.defaultName', 'index.js output:add');
 
 let problems = 0;
 for (const [lang, dict] of Object.entries(STRINGS)) {
