@@ -99,6 +99,18 @@ html.cam-on #dim { display: block; }
 html.cam-on #status { background: rgba(0, 0, 0, max(.45, var(--plate))); border-bottom-color: transparent; }
 html.no-status #status { display: none; }
 
+/* Virtueller Prompter: ganzes Fenster lässt sich ziehen, dezenter Rahmen zeigt die Kanten */
+html.virtual body { -webkit-app-region: drag; }
+html.virtual body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  border: 1px solid rgba(244, 237, 228, .22);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 50;
+}
+
 .st-left { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .st-center {
   color: var(--text-dim);

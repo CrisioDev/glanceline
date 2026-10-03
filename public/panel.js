@@ -254,6 +254,7 @@
     languages: () => I18N.LANGUAGE_OPTIONS.map(([v, label]) => [v, v === 'auto' ? t('settings.languageAuto') : label]),
     displays: () => [
       ['auto', t('settings.displayAuto')],
+      ['virtual', t('settings.displayVirtual')],
       ...((live && live.displays) || []).map((d) => [
         d.id,
         `${d.label || t('settings.displayGeneric')} · ${d.width}×${d.height}${d.isPrompter ? ' · Prompter' : ''}${d.primary ? ` · ${t('settings.displayPrimary')}` : ''}`,
@@ -339,6 +340,7 @@
       lead: 'settings.sec.displayLead',
       fields: [
         { k: 'display.target', l: 'settings.display', type: 'select', dyn: 'displays' },
+        { k: 'display.virtualOpacity', l: 'settings.virtualOpacity', type: 'range', min: 0.3, max: 1, step: 0.05, fmt: 'pct', h: 'settings.virtualHint', show: 'display.target=virtual' },
         { k: 'display.mirror', l: 'settings.mirror', type: 'toggle', h: 'settings.mirrorHint' },
         { k: 'display.testWindow', l: 'settings.testWindow', type: 'toggle' },
         { k: 'display.statusBar', l: 'settings.statusBar', type: 'toggle' },
@@ -881,6 +883,7 @@
     const p = live.prompter || {};
     if (p.kind === 'prompter') out.push(chip('ok', 'Prompter'));
     else if (p.kind === 'test') out.push(chip('warn', t('chip.testWindow')));
+    else if (p.kind === 'virtual') out.push(chip('ok', t('chip.virtual')));
     else if (live.clients.main) out.push(chip('ok', t('chip.prompterView')));
     else out.push(chip('bad', t('chip.noPrompter')));
     const tw = live.twitch || {};
@@ -1173,9 +1176,11 @@
       ['PowerPoint', p.running ? 'ok' : '', p.running ? (p.mode === 'show' ? t('conn.pptShow', { n: p.slide, total: p.total }) : p.file || t('ppt.open')) : t('ppt.notOpen')],
       [
         'Prompter',
-        pr.kind === 'prompter' ? 'ok' : pr.kind === 'test' ? 'warn' : live.clients.main ? 'ok' : 'bad',
+        pr.kind === 'prompter' || pr.kind === 'virtual' ? 'ok' : pr.kind === 'test' ? 'warn' : live.clients.main ? 'ok' : 'bad',
         pr.kind === 'prompter'
           ? `${(pr.display && pr.display.label) || 'Display'} · ${t('camera.active')}`
+          : pr.kind === 'virtual'
+            ? t('conn.virtual')
           : pr.kind === 'test'
             ? t('conn.testWindow')
             : live.clients.main
