@@ -81,6 +81,21 @@ Send them as `POST /api/action` with a JSON body. `type` is required; some actio
 | `obs:reconnect` | | Reconnect to OBS. |
 | `hotkeys:suspend`, `hotkeys:resume` | | Pause the global hotkeys, e.g. while gaming. |
 
+### Profiles, MIDI, accounts and files
+
+| `type` | Extra fields | What it does |
+|---|---|---|
+| `profile:1` … `profile:4`, `profile:next` | | Apply a profile by position, or the next one. |
+| `profile:apply` | `id` (empty = no profile) | Apply a profile. |
+| `profile:save` | `name` | Save the current look as a new profile. Returns `{ ok, id }`. |
+| `profile:update` | `id` (optional, default: active) | Overwrite a profile with the current settings. |
+| `profile:rename`, `profile:delete` | `id`, `name` | |
+| `midi:learn` | `target` (an action type or `script:speed`; empty = cancel) | Assign the next key pressed on a MIDI controller. |
+| `midi:unmap` | `key`, e.g. `note:1:60` | Remove a MIDI assignment. |
+| `twitch:login`, `twitch:loginCancel`, `twitch:logout` | | Optional Twitch login for EventSub (device code shown in `live.eventsub`). |
+| `library:pick`, `library:open`, `library:clear` | | Choose, open or unlink the script folder (desktop app). |
+| `streamdeck:install` | | Install or update the Stream Deck plugin (desktop app). |
+
 ## Live updates (Server-Sent Events)
 
 `GET /events?role=api` keeps the connection open and sends named events:
@@ -102,7 +117,10 @@ Useful fields in `live`:
 | `show.running`, `show.startedAt`, `show.acc` | Show timer. Elapsed ms = `acc + (running ? now - startedAt : 0)`; the countdown length is `settings.timers.minutes`. |
 | `section` | Current script section for the run of show: `index`, `title`, `at` (show time when it started). |
 | `obs.streaming`, `obs.recording`, `obs.scene` | OBS status. |
-| `twitch.viewers`, `youtube.viewers`, `kick.viewers` | Viewer counts (`null` when offline). |
+| `twitch.viewers`, `youtube.viewers`, `kick.viewers` | Viewer counts (`null` when offline). `youtube.state` and `kick.state` tell whether the stream is live. |
+| `director` | Director message on the prompter: `text`, `until`; `countdown: true` for ad breaks. |
+| `eventsub` | Twitch login: `state` (`off`, `pending`, `connecting`, `connected`, `error`), `login`, `userCode` while pending. |
+| `midi` | Connected MIDI `devices`, `learn` while learning, `last` key received. |
 | `ppt.slide`, `ppt.total` | Current slide in a running PowerPoint show. |
 | `now` | Server time in ms – use `now - Date.now()` as clock offset for running timers. |
 

@@ -4,7 +4,7 @@
 
 Glanceline zeigt auf deinem Prompter, was du vor der Kamera brauchst:
 
-- deinen **Twitch-Chat**, auch mit 7TV-, BTTV- und FFZ-Emotes,
+- deinen **Twitch-, YouTube- und Kick-Chat** in einer Liste, auch mit 7TV-, BTTV- und FFZ-Emotes,
 - ein **Scroll-Skript**,
 - deinen **OBS-Stream-Status**,
 - oder die **PowerPoint-Notizen** der aktuellen Folie.
@@ -19,8 +19,8 @@ Umschalten geht per Klick oder globalem Hotkey. Auf Wunsch liegt dein eigenes Ka
 
 | Modus | Was auf dem Prompter erscheint |
 |---|---|
-| **Chat** | Twitch-Chat, anonym gelesen (kein Login): <br>• Emotes von Twitch, **7TV**, BTTV und FFZ, inklusive Zero-Width-Emotes <br>• **7TV live**: neue oder entfernte Emotes erscheinen sofort <br>• Subs, Gift-Subs, Raids, Bits und @Erwähnungen hervorgehoben <br>• Kanalpunkte-Nachrichten, Erst- und Wiederkehrer, Shared Chat markiert <br>• Chat per Hotkey **pausieren und zurückspulen** <br>• Filter für Bots und !Befehle |
-| **Skript** | Teleprompter, der **deiner Stimme folgen** kann – offline, ohne Grafikkarte, Deutsch/Englisch/Französisch/Spanisch. Er wartet, wenn du abschweifst, und holt auf, wenn du etwas überspringst. Außerdem: <br>• Lesezeile und Countdown <br>• Tempo-Regelung <br>• Markdown-Abschnitten, zu denen du per Hotkey springst <br>• Regie-Schildern wie `[Pause]` <br>• **Clicker & Fußpedal** (Bild↑/Bild↓ oder beliebige Tasten) <br>• **Einschübe**: ein Hotkey schiebt ein kurzes Skript dazwischen (Raid-Dank, Werbung) und springt danach an die alte Stelle zurück <br>• Rechts-nach-links-Schrift und Rückwärtslauf |
+| **Chat** | **Twitch, YouTube und Kick** in einem Chat, anonym gelesen (kein Login, kein API-Key), mit Plattform-Symbolen und Zuschauerzahlen: <br>• YouTube-Super-Chats, Mitgliedschaften und Geschenke; Kick-Abos, Geschenke, Hosts und Kicks <br>• Optionaler Twitch-Login für Follows, alle Kanalpunkte-Einlösungen, Hype Trains, Umfragen, Vorhersagen und Werbepausen (mit Countdown auf dem Prompter) <br>• Emotes von Twitch, **7TV**, BTTV und FFZ, inklusive Zero-Width-Emotes <br>• **7TV live**: neue oder entfernte Emotes erscheinen sofort <br>• Subs, Gift-Subs, Raids, Bits und @Erwähnungen hervorgehoben <br>• Kanalpunkte-Nachrichten, Erst- und Wiederkehrer, Shared Chat markiert <br>• Chat per Hotkey **pausieren und zurückspulen** <br>• Filter für Bots und !Befehle |
+| **Skript** | Teleprompter, der **deiner Stimme folgen** kann – offline, ohne Grafikkarte, Deutsch/Englisch/Französisch/Spanisch. Er wartet, wenn du abschweifst, und holt auf, wenn du etwas überspringst. Außerdem: <br>• Lesezeile und Countdown <br>• Tempo-Regelung <br>• Markdown-Abschnitten, zu denen du per Hotkey springst <br>• Regie-Schildern wie `[Pause]` <br>• **Clicker & Fußpedal** (Bild↑/Bild↓ oder beliebige Tasten) <br>• **Einschübe**: ein Hotkey schiebt ein kurzes Skript dazwischen (Raid-Dank, Werbung) und springt danach an die alte Stelle zurück <br>• Rechts-nach-links-Schrift und Rückwärtslauf <br>• **Run of Show**: Zielzeiten je Abschnitt (`## Intro {2:00}`), Vorsprung/Rückstand und Show-Countdown <br>• **Import** von Word (.docx), Markdown und Text, Einfügen aus Word oder Google Docs mit Formatierung, oder ein **verknüpfter Ordner**, der beim Bearbeiten in Obsidian, VS Code oder Word live synchron bleibt |
 | **OBS** | LIVE-/REC-Zeiten, Szene, FPS, CPU, Bitrate und Drops (über obs-websocket) |
 | **PowerPoint** | Notizen der **aktuellen Folie**, automatisch synchron, auch mit Presenter-Clicker. Die Schrift passt sich an, dazu Titel der nächsten Folie und Vortragstimer. Schaltet sich beim Start der Präsentation selbst ein. |
 | **Kamera** | Dein Kamerabild als Kontrollmonitor |
@@ -29,7 +29,11 @@ Außerdem:
 
 - **Kamerabild hinter dem Text.** Der Text bleibt lesbar, Abdunkelung und Hinterlegung sind einstellbar. Quelle ist eine Webcam oder eine beliebige OBS-Quelle.
 - **Statusleiste in jedem Modus** mit LIVE-/REC-Anzeige und Uhr. Raids und Subs werden auch eingeblendet, während du ein Skript liest.
-- **Steuerung von überall:** Panel mit Live-Vorschau, Handy (QR-Code scannen, zum Startbildschirm hinzufügen), OBS-Dock oder **globale Hotkeys** (Stream Deck: Aktion „Hotkey“).
+- **Steuerung von überall:** Panel mit Live-Vorschau, Handy (QR-Code scannen, zum Startbildschirm hinzufügen), OBS-Dock, **globale Hotkeys**, MIDI-Controller oder das **Stream-Deck-Plugin** mit Live-Zustand auf den Tasten (Installation per Klick im Panel).
+- **Halten zum Scrollen:** Clicker, Pedal, Hotkey, Stream-Deck-Taste oder MIDI-Pad halten, und das Skript läuft flüssig weiter.
+- **Virtueller Prompter:** Keine Prompter-Hardware? Ein schwebendes Fenster unter deiner Webcam, das OBS, Zoom und Bildschirmfreigaben nicht sehen.
+- **Profile:** das Aussehen (Schriften, Größen, Tempo, Kamera, Timer) als „Stream“, „Vortrag“ oder „Aufnahme“ speichern und per Klick, Hotkey oder automatisch je Modus oder Skript wechseln.
+- **Lokale API** für Companion, Touch Portal und eigene Skripte – siehe [docs/API.md](docs/API.md).
 - **Blickkontakt-Hilfen:** Linsen-Fadenkreuz, schmale Textspalte, zentrierter Text. Jede installierte Schrift, OpenDyslexic, Hochkontrast und Software-Dimmer gegen Spiegelungen.
 - **OBS-Automatik:** Ein Szenenwechsel in OBS schaltet den Prompter-Modus um (z. B. *Just Chatting* → Chat). Optional startet die Aufnahme mit dem Skript, mit Kapitelmarken pro Abschnitt und Folie.
 - **Regie-Nachrichten:** Eine kurze Notiz vom Panel oder Handy („Noch 2 Minuten“) erscheint auf dem Prompter.
@@ -72,6 +76,7 @@ Aus dem Quellcode: `npm install`, dann `npm start`.
 | Strg+Alt+F9 | Durchreichen an/aus |
 | Strg+Alt+F10 | Chat pausieren/fortsetzen |
 | Strg+Alt+F11 / F12 | Einschub 1 / 2 |
+| Strg+Alt+Num 0 | Show-Timer Start/Pause |
 
 Clicker-Tasten (Bild↓ / Bild↑ / B) sind anfangs aus und werden unter *Einstellungen → Clicker & Fußpedal* eingeschaltet. Sie gelten nur im Skript-Modus, PowerPoint behält also seine Tasten.
 
@@ -88,10 +93,11 @@ Strg+Alt+Buchstabe ist bewusst ausgespart, weil das auf deutschen Tastaturen Alt
 - Einstellungen und Skripte liegen in `%APPDATA%\Glanceline`.
 - Die Sprachsteuerung läuft komplett auf deinem PC, kein Ton verlässt den Rechner. Das Sprachmodell (~70 MB, Kroko ASR von Banafo, CC BY-SA 4.0) wird beim ersten Gebrauch von Hugging Face geladen.
 - Verbindungen gehen nur zu:
-  - Twitch-Chat (anonym, nur lesend),
+  - den eingerichteten Chats: Twitch (anonym, nur lesend), YouTube (öffentlicher Livechat-Endpunkt, kein API-Key) und Kick (öffentlicher Chat-Websocket),
   - den öffentlichen Emote-APIs von 7TV, BTTV und FFZ sowie zur 7TV-EventAPI,
+  - Twitch-Login und EventSub, nur wenn du dein Twitch-Konto verbindest (nur lesend; die Anmeldung liegt getrennt von den Einstellungen in `twitch-auth.json`),
   - deinem lokalen OBS.
-- Es gibt keine Telemetrie und kein Konto. Die Schriften sind mitgeliefert.
+- Es gibt keine Telemetrie und keine Cloud. Ein Twitch-Login ist optional. Die Schriften sind mitgeliefert.
 
 ## Lizenz
 

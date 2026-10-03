@@ -4,7 +4,7 @@
 
 Glanceline puts what you need while you are on camera onto your prompter:
 
-- your **Twitch chat**, including 7TV, BTTV and FFZ emotes,
+- your **Twitch, YouTube and Kick chat** in one list, including 7TV, BTTV and FFZ emotes,
 - a **scrolling script**,
 - your **OBS stream status**,
 - or the **PowerPoint speaker notes** of the current slide.
@@ -19,8 +19,8 @@ You switch between them with one click or a global hotkey. You can also place yo
 
 | Mode | What you see on the prompter |
 |---|---|
-| **Chat** | Twitch chat, read anonymously (no login): <br>• Emotes from Twitch, **7TV**, BTTV and FFZ, including zero-width emotes <br>• **Live 7TV updates**: added or removed emotes show up instantly <br>• Highlighted subs, gift subs, raids, bits and @mentions <br>• Channel-point messages, first-time and returning chatters, Shared Chat marked <br>• **Pause and rewind** the chat by hotkey <br>• Bot and !command filters |
-| **Script** | Teleprompter that can **follow your voice** – offline, any CPU, English/German/French/Spanish. It waits while you ad-lib and catches up when you skip ahead. Also includes: <br>• a reading line and a countdown <br>• speed control <br>• Markdown sections you can jump between by hotkey <br>• stage-direction tags like `[Pause]` <br>• **Clicker & foot pedal** support (PageUp/PageDown or any key you choose) <br>• **Quick inserts**: a hotkey drops in a short script (raid thank-you, ad read), then jumps back to where you were <br>• right-to-left scripts and reverse scrolling |
+| **Chat** | **Twitch, YouTube and Kick** in one chat, read anonymously (no login, no API key), with platform icons and viewer counts: <br>• YouTube Super Chats, memberships and gifts; Kick subs, gifts, hosts and Kicks <br>• Optional Twitch login for follows, all channel-point redemptions, hype trains, polls, predictions and ad breaks (with a countdown on the prompter) <br>• Emotes from Twitch, **7TV**, BTTV and FFZ, including zero-width emotes <br>• **Live 7TV updates**: added or removed emotes show up instantly <br>• Highlighted subs, gift subs, raids, bits and @mentions <br>• Channel-point messages, first-time and returning chatters, Shared Chat marked <br>• **Pause and rewind** the chat by hotkey <br>• Bot and !command filters |
+| **Script** | Teleprompter that can **follow your voice** – offline, any CPU, English/German/French/Spanish. It waits while you ad-lib and catches up when you skip ahead. Also includes: <br>• a reading line and a countdown <br>• speed control <br>• Markdown sections you can jump between by hotkey <br>• stage-direction tags like `[Pause]` <br>• **Clicker & foot pedal** support (PageUp/PageDown or any key you choose) <br>• **Quick inserts**: a hotkey drops in a short script (raid thank-you, ad read), then jumps back to where you were <br>• right-to-left scripts and reverse scrolling <br>• **Run of show**: target times per section (`## Intro {2:00}`), ahead/behind display and a show countdown <br>• **Import** Word (.docx), Markdown and text files, paste from Word or Google Docs with formatting, or **link a folder** that stays in sync while you edit in Obsidian, VS Code or Word |
 | **OBS** | LIVE/REC timers, current scene, FPS, CPU, bitrate and dropped frames (via obs-websocket) |
 | **PowerPoint** | Speaker notes of the **current slide**, synced automatically, presenter clickers included. Text auto-fits, with next-slide title and talk timer. Switches on when the slideshow starts. |
 | **Camera** | Your camera image as a confidence monitor |
@@ -29,7 +29,11 @@ Also included:
 
 - **Camera image behind the text.** Text stays readable with adjustable darkening and a backdrop. The source is a webcam or any OBS source.
 - **Status bar in every mode** with LIVE/REC indicator and clock. Raids and subs pop up even while you read a script.
-- **Control from anywhere.** Desktop panel with a live preview, your phone (scan a QR code, add to home screen), an OBS custom dock, or **global hotkeys** (Stream Deck: use the “Hotkey” action).
+- **Control from anywhere.** Desktop panel with a live preview, your phone (scan a QR code, add to home screen), an OBS custom dock, **global hotkeys**, MIDI controllers, or the **Stream Deck plugin** with live state on the keys (one-click install from the panel).
+- **Hold to scroll:** hold a clicker, pedal, hotkey, Stream Deck key or MIDI pad and the script scrolls smoothly.
+- **Virtual prompter:** no prompter hardware? A floating window under your webcam that OBS, Zoom and screen sharing can’t see.
+- **Profiles:** save the look (fonts, sizes, speed, camera, timers) as “Stream”, “Talk” or “Recording” and switch by click, hotkey or automatically per mode or script.
+- **Local API** for Companion, Touch Portal and your own scripts – see [docs/API.md](docs/API.md).
 - **Eye-line aids:** lens crosshair, narrow text column, centered text. Any installed font, OpenDyslexic, high-contrast mode and a software dimmer against reflections.
 - **OBS automation:** switching OBS scenes switches the prompter mode (e.g. *Just Chatting* → chat). Optionally start a recording with the script and add chapter markers for every section and slide.
 - **Director messages:** send a short note from the panel or a phone (“2 minutes left”) that flashes on the prompter.
@@ -81,6 +85,7 @@ All hotkeys work globally and can be changed under *Settings → Keyboard shortc
 | Ctrl+Alt+F9 | Pass-through on/off |
 | Ctrl+Alt+F10 | Pause/resume chat |
 | Ctrl+Alt+F11 / F12 | Insert 1 / 2 |
+| Ctrl+Alt+Num 0 | Show timer start/pause |
 
 Clicker keys (PageDown / PageUp / B) are off by default. Turn them on under *Settings → Clicker & foot pedal*. They only apply in script mode, so PowerPoint keeps its keys.
 
@@ -98,10 +103,11 @@ The defaults avoid Ctrl+Alt+letter on purpose. On many European keyboards that c
 - Settings and scripts live in `%APPDATA%\Glanceline`. You can override the location with the `GLANCELINE_DATA` environment variable.
 - Voice tracking runs completely on your PC: no audio leaves your computer. The speech model (~70 MB, Kroko ASR by Banafo, CC BY-SA 4.0) is downloaded from Hugging Face on first use.
 - Glanceline talks only to:
-  - Twitch chat (anonymous read-only IRC),
+  - the chats you set up: Twitch (anonymous read-only IRC), YouTube (the public live-chat endpoint, no API key) and Kick (its public chat websocket),
   - the public 7TV / BTTV / FFZ emote APIs and the 7TV EventAPI,
+  - Twitch login and EventSub, only if you connect your Twitch account (read-only; the login is stored in `twitch-auth.json`, separate from the settings),
   - your local OBS.
-- There is no telemetry, no account and no cloud. Fonts are bundled.
+- There is no telemetry and no cloud. A Twitch login is optional. Fonts are bundled.
 - The local web server binds to `127.0.0.1`. Home-network access is opt-in and token-protected.
 
 ## Development

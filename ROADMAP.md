@@ -26,9 +26,9 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 
 | Gap in Elgato's software (as of Oct 2026) | Glanceline |
 |---|---|
-| Hotkeys / Stream Deck missing in Studio 2.0 — top complaint in every beta thread | ✅ global hotkeys, phone, OBS dock |
+| Hotkeys / Stream Deck missing in Studio 2.0 — top complaint in every beta thread | ✅ global hotkeys, phone, OBS dock, Stream Deck plugin, MIDI |
 | Camera image behind the script — Elgato cameras only, missing in Studio | ✅ any webcam or OBS source |
-| Full-fidelity chat: 7TV/BTTV/FFZ, subs, raids, bits | ✅ incl. live 7TV updates |
+| Full-fidelity chat: 7TV/BTTV/FFZ, subs, raids, bits | ✅ Twitch + YouTube + Kick, incl. live 7TV updates |
 | OBS status on the prompter | ✅ |
 | PowerPoint notes synced to the current slide | ✅ |
 | Windows 10 (dropped by Studio 2.0) | ✅ |
@@ -64,15 +64,17 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 
 ## Phase 2 — Reach & integrations (v0.4)
 
+✅ **Done in Oct 2026.** Twitch EventSub still needs a registered public Twitch app for the built-in client ID.
+
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| 2.1 | **YouTube + Kick chat** merged with Twitch, with platform badges and viewer counts. No API key or quota: YouTube via `youtubei.js`, Kick via its public websocket. | One of the most requested features; Elgato's YouTube login keeps breaking on API quota | M |
-| 2.2 | **Documented local API** (HTTP + WebSocket) and a **Stream Deck plugin** showing live state on the keys (mode, speed, timer); Bitfocus Companion and MIDI | Elgato's plugin is "in testing" with no ETA; QPrompt's most-reacted issue is Companion support | M |
-| 2.3 | **Script import & sync** — .docx with formatting, paste from Word keeping bold/italic, and a watched folder of .md files (edit in Obsidian/VS Code, prompter updates live) | "biggest gripe … copy and pasting from a Word doc"; about 39 threads on import/export/backup | S–M |
-| 2.4 | **Virtual prompter** — always-on-top floating window under the webcam, invisible to screen capture and OBS | Two of the three most-starred OSS prompters are overlay prompters; opens Glanceline to webcam-only users | S–M |
-| 2.5 | **Twitch EventSub (optional login)** — follows, channel points, hype trains, polls | Needs OAuth (device-code flow); anonymous chat stays the default | M |
-| 2.6 | **Run-of-show timers** — target time per section with ahead/behind display, show countdown in a corner, reset by hotkey | QPrompt #70; Elgato threads ask for a show countdown | M |
-| 2.7 | **Profiles** — per-script or per-mode settings, quick switching | "settings are universal across modes … no profile functionality" | M |
+| 2.1 | ✅ **YouTube + Kick chat** merged with Twitch, with platform badges and viewer counts. No API key or quota, no dependency: YouTube via the live-chat endpoint the browser popout uses, Kick via its public Pusher websocket (channel lookup through Electron’s network stack, plain Node requests are blocked). | One of the most requested features; Elgato's YouTube login keeps breaking on API quota | M |
+| 2.2 | ✅ **Documented local API** (HTTP + Server-Sent Events) and a **Stream Deck plugin** showing live state on the keys (mode, speed, timer); Bitfocus Companion and MIDI | Elgato's plugin is "in testing" with no ETA; QPrompt's most-reacted issue is Companion support | M |
+| 2.3 | ✅ **Script import & sync** — .docx with formatting, paste from Word keeping bold/italic, and a watched folder of .md files (edit in Obsidian/VS Code, prompter updates live) | "biggest gripe … copy and pasting from a Word doc"; about 39 threads on import/export/backup | S–M |
+| 2.4 | ✅ **Virtual prompter** — always-on-top floating window under the webcam, invisible to screen capture and OBS | Two of the three most-starred OSS prompters are overlay prompters; opens Glanceline to webcam-only users | S–M |
+| 2.5 | ✅ **Twitch EventSub (optional login)** — follows, channel points, hype trains, polls, predictions, ad breaks with a countdown on the prompter | Needs OAuth (device-code flow); anonymous chat stays the default | M |
+| 2.6 | ✅ **Run-of-show timers** — target time per section with ahead/behind display, show countdown in a corner, reset by hotkey | QPrompt #70; Elgato threads ask for a show countdown | M |
+| 2.7 | ✅ **Profiles** — per-script or per-mode settings, quick switching | "settings are universal across modes … no profile functionality" | M |
 | 2.8 | ✅ **Hold-to-scroll** for clickers, pedals and hotkeys (scroll while the key is held) | Left over from 1.1. No keyboard hook needed after all: Windows auto-repeats held keys for global shortcuts too, so repeats faster than 100 ms mean “held” | S |
 
 ## Phase 3 — Big bets (v0.5+)
