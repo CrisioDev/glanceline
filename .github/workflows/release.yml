@@ -1,0 +1,36 @@
+# Baut bei jedem Versions-Tag (z. B. v0.2.0) den Windows-Installer und die portable .exe
+# und hängt beide an ein GitHub-Release (zunächst als Entwurf).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check translations
+        run: npm run check:i18n
+
+      - name: Syntax check
+        shell: bash
+        run: for f in main.js server/*.js public/*.js tools/*.js; do node --check "$f"; done
+
+      - name: Build & publish
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
