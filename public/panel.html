@@ -225,17 +225,32 @@
         <aside class="card script-list">
           <div class="card-head">
             <h2 data-i18n="tab.scripts"></h2>
-            <button class="btn sm" id="newScript"><i data-icon="plus"></i><span data-i18n="scripts.new"></span></button>
+            <div class="btn-row tight">
+              <button class="btn icon sm" id="importScript" data-i18n-title="scripts.importTitle" data-i18n-aria="scripts.import"><i data-icon="upload"></i></button>
+              <button class="btn sm" id="newScript"><i data-icon="plus"></i><span data-i18n="scripts.new"></span></button>
+            </div>
+            <input type="file" id="importFile" accept=".md,.markdown,.txt,.docx" multiple hidden>
           </div>
           <ul id="scriptList"></ul>
+          <div class="folder-box">
+            <h3 class="sub" data-i18n="library.title"></h3>
+            <p class="hint" id="folderInfo"></p>
+            <div class="btn-row">
+              <button class="btn sm" data-action="library:pick"><i data-icon="folder"></i><span data-i18n="library.pick"></span></button>
+              <button class="btn sm" data-action="library:open" id="folderOpen"><span data-i18n="library.open"></span></button>
+              <button class="btn sm" data-action="library:clear" id="folderClear"><i data-icon="x"></i><span data-i18n="library.clear"></span></button>
+            </div>
+          </div>
         </aside>
         <section class="card editor">
           <input id="scriptTitle" class="title-input" data-i18n-placeholder="scripts.titlePlaceholder" autocomplete="off">
+          <div class="linked-note" id="linkedNote" hidden><i data-icon="link"></i><span></span><button class="btn sm" id="editLinked"><i data-icon="edit"></i><span data-i18n="library.editFile"></span></button></div>
           <textarea id="scriptBody" spellcheck="true" data-i18n-placeholder="scripts.bodyPlaceholder"></textarea>
           <div class="editor-foot">
             <span id="scriptStats"></span>
             <span id="saveState" class="save-state"></span>
             <span class="push"></span>
+            <button class="btn" id="exportScript" data-i18n-title="scripts.exportTitle"><i data-icon="download"></i><span data-i18n="scripts.export"></span></button>
             <button class="btn" id="deleteScript"><i data-icon="trash"></i><span></span></button>
             <button class="btn primary" id="activateScript"><i data-icon="check"></i><span></span></button>
           </div>
@@ -306,6 +321,7 @@
   <script src="/common.js"></script>
   <script src="/i18n.js"></script>
   <script src="/qr.js"></script>
+  <script src="/docx.js"></script>
   <script src="/panel.js"></script>
 </body>
 </html>

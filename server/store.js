@@ -98,6 +98,7 @@ function defaultSettings() {
     inserts: { 1: '', 2: '', 3: '', 4: '' }, // Skript-IDs für Einschübe per Hotkey
     // Show-Timer: Laufzeit oder Countdown in der Statusleiste; startet von Hand, mit dem Skript oder mit dem Stream
     timers: { show: false, minutes: 0, start: 'script', warn: 2 },
+    library: { folder: '' }, // Skript-Ordner, der live synchron gehalten wird
     voice: { enabled: false, lang: 'auto', micLabel: '', dimRead: true },
     ppt: { autoSwitch: true, maxFontSize: 54, minFontSize: 24, showNext: true, showTimer: true },
     obs: { host: '127.0.0.1', port: 4455, password: '' },
@@ -167,6 +168,7 @@ function clampRanges(s) {
   s.chat.hideBots = s.chat.hideBots.map((b) => b.toLowerCase());
   s.chat.youtube = String(s.chat.youtube || '').trim();
   s.chat.kick = String(s.chat.kick || '').trim();
+  s.library.folder = String(s.library.folder || '').trim().replace(/^"(.*)"$/, '$1');
   if (!s.general.token) s.general.token = newToken();
   if (s.general.language !== 'auto' && !LANGUAGES.includes(s.general.language)) s.general.language = 'auto';
   if (!['auto', 'de', 'en', 'fr', 'es'].includes(s.voice.lang)) s.voice.lang = 'auto';

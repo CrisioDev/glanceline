@@ -2,7 +2,7 @@
 // Glanceline – Electron-Hauptprozess
 // Startet den internen Server, legt die Prompter-Ansicht randlos auf den Elgato Prompter,
 // registriert die globalen Hotkeys und hängt sich in den Infobereich (Tray).
-const { app, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, dialog, globalShortcut, nativeImage, screen, session, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { Glanceline } = require('./server');
@@ -73,6 +73,15 @@ async function boot() {
     updateTrayMenu();
   });
   core.on('hotkeys', registerHotkeys);
+  // Skript-Ordner wählen und Dateien/Ordner im Explorer bzw. Standard-Editor öffnen
+  core.on('pickFolder', async () => {
+    const parent = panelWin && !panelWin.isDestroyed() ? panelWin : undefined;
+    const r = await dialog.showOpenDialog(parent, { title: t('library.pickTitle'), properties: ['openDirectory'], defaultPath: core.settings.library.folder || app.getPath('documents') });
+    if (!r.canceled && r.filePaths[0]) core.patchSettings({ library: { folder: r.filePaths[0] } });
+  });
+  core.on('openPath', (p) => {
+    shell.openPath(p).then((err) => err && console.warn('[open]', err));
+  });
   // Clicker-Tasten gelten nur im Skript-Modus – bei jedem Moduswechsel neu belegen
   core.on('mode', () => {
     if (core.settings.clicker.enabled) registerHotkeys();
