@@ -1,0 +1,81 @@
+{
+  "name": "glanceline",
+  "productName": "Glanceline",
+  "appUserModelId": "io.github.crisiodev.glanceline",
+  "version": "0.1.0",
+  "description": "Teleprompter companion for streamers and presenters: Twitch chat with 7TV, scrolling script, OBS status and PowerPoint notes on your Elgato Prompter",
+  "main": "main.js",
+  "private": true,
+  "author": "Crisio",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server/index.js",
+    "icon": "node tools/make-icon.js",
+    "shortcut": "electron tools/create-shortcuts.js",
+    "dist": "electron-builder --win",
+    "check:i18n": "node tools/check-i18n.js"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "io.github.crisiodev.glanceline",
+    "productName": "Glanceline",
+    "copyright": "Copyright © 2026 Crisio",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "server/**/*",
+      "public/**/*",
+      "assets/**/*"
+    ],
+    "asarUnpack": [
+      "server/ppt-bridge.ps1",
+      "server/voice-worker.js",
+      "node_modules/sherpa-onnx-node/**",
+      "node_modules/sherpa-onnx-win-x64/**"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Glanceline",
+      "artifactName": "Glanceline-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Glanceline-${version}-portable.${ext}"
+    }
+  },
+  "dependencies": {
+    "sherpa-onnx-node": "^1.13.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CrisioDev/glanceline.git"
+  },
+  "homepage": "https://github.com/CrisioDev/glanceline"
+}

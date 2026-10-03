@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4ede4">
+  <title>Glanceline</title>
+  <link rel="icon" href="/icon.png">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Glanceline">
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/panel.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/icon.png" alt="">
+      <div>
+        <h1>Glanceline</h1>
+        <span data-i18n="app.subtitle"></span>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="live" data-i18n="tab.live"></button>
+      <button class="tab" role="tab" data-tab="scripts" data-i18n="tab.scripts"></button>
+      <button class="tab" role="tab" data-tab="settings" data-i18n="tab.settings"></button>
+    </nav>
+    <div class="chips" id="chips"></div>
+    <button class="btn sm phone-btn" id="phoneBtn" data-i18n-title="phone.button.title"><i data-icon="phone"></i><span data-i18n="phone.button"></span></button>
+  </header>
+
+  <main>
+    <!-- ============================== LIVE ============================== -->
+    <section class="page" id="page-live">
+      <div class="live-grid">
+        <div class="col">
+          <div class="card preview-card">
+            <div class="preview" id="preview">
+              <iframe id="previewFrame" src="/prompter?role=preview" tabindex="-1" data-i18n-title="live.previewTitle"></iframe>
+            </div>
+            <div class="modes" id="modes">
+              <button data-mode="chat"><i data-icon="chat"></i><span data-i18n="mode.chat"></span></button>
+              <button data-mode="script"><i data-icon="script"></i><span data-i18n="mode.script"></span></button>
+              <button data-mode="obs"><i data-icon="broadcast"></i><span data-i18n="mode.obs"></span></button>
+              <button data-mode="ppt"><i data-icon="slides"></i><span data-i18n="mode.ppt"></span></button>
+              <button data-mode="camera"><i data-icon="camera"></i><span data-i18n="mode.camera"></span></button>
+            </div>
+            <div class="quick">
+              <button class="btn blackout-btn" id="blackoutBtn" data-action="blackout"><i data-icon="eye-off"></i><span data-i18n="live.blackout"></span></button>
+              <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="camera.enabled"><span class="knob"></span></span><span data-i18n="live.cameraImage"></span></label>
+              <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="display.mirror"><span class="knob"></span></span><span data-i18n="live.mirror"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <!-- Skript -->
+          <div class="card mode-card" data-card="script">
+            <div class="card-head">
+              <h2 data-i18n="script.title"></h2>
+              <select id="scriptSelect" class="select-compact" data-i18n-aria="script.active"></select>
+            </div>
+            <div class="voice-box">
+              <div class="voice-row">
+                <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="voice.enabled"><span class="knob"></span></span><span data-i18n="voice.toggle"></span></label>
+                <span class="level" id="voiceLevel" data-i18n-title="voice.levelTitle"><i></i></span>
+              </div>
+              <div class="voice-detail" id="voiceDetail"></div>
+            </div>
+            <div class="transport">
+              <button class="btn icon" data-action="script:prevSection" data-i18n-title="script.prevSection"><i data-icon="skip-back"></i></button>
+              <button class="btn icon" data-action="view:back" data-target="script" data-i18n-title="script.scrollBack"><i data-icon="chev-up"></i></button>
+              <button class="btn primary play" id="playBtn" data-action="script:toggle"><i data-icon="play"></i><span></span></button>
+              <button class="btn icon" data-action="view:forward" data-target="script" data-i18n-title="script.scrollForward"><i data-icon="chev-down"></i></button>
+              <button class="btn icon" data-action="script:nextSection" data-i18n-title="script.nextSection"><i data-icon="skip-fwd"></i></button>
+            </div>
+            <div class="progress" id="scriptProgress" data-i18n-title="script.progressTitle"><i></i></div>
+            <div class="progress-meta">
+              <span id="scriptPct">0 %</span>
+              <span id="scriptRemain"></span>
+              <button class="link" data-action="script:restart"><i data-icon="restart"></i><span data-i18n="script.toStart"></span></button>
+            </div>
+            <div class="control-row" data-show="voice.enabled=false">
+              <label for="speedRange" data-i18n="script.speed"></label>
+              <button class="btn icon sm" data-action="script:slower" data-i18n-title="script.slower"><i data-icon="minus"></i></button>
+              <input type="range" id="speedRange" data-setting="script.speed" min="5" max="300" step="1">
+              <button class="btn icon sm" data-action="script:faster" data-i18n-title="script.faster"><i data-icon="plus"></i></button>
+              <output data-for="script.speed" data-fmt="pxs"></output>
+            </div>
+            <div class="control-row">
+              <label data-i18n="common.font"></label>
+              <button class="btn icon sm" data-action="font:smaller" data-target="script" data-i18n-title="common.smaller"><i data-icon="minus"></i></button>
+              <output data-for="script.fontSize" data-fmt="px" class="mid"></output>
+              <button class="btn icon sm" data-action="font:bigger" data-target="script" data-i18n-title="common.bigger"><i data-icon="plus"></i></button>
+              <button class="link push" data-goto="scripts"><i data-icon="edit"></i><span data-i18n="script.edit"></span></button>
+            </div>
+            <h3 class="sub" data-i18n="script.sections"></h3>
+            <ol class="sections" id="sectionList" data-i18n-attr="data-empty:script.sectionsEmpty"></ol>
+          </div>
+
+          <!-- Chat -->
+          <div class="card mode-card" data-card="chat">
+            <div class="card-head">
+              <h2 data-i18n="chat.title"></h2>
+              <span class="state" id="chatState"></span>
+            </div>
+            <dl class="facts" id="chatFacts"></dl>
+            <div class="control-row">
+              <label data-i18n="common.font"></label>
+              <button class="btn icon sm" data-action="font:smaller" data-target="chat" data-i18n-title="common.smaller"><i data-icon="minus"></i></button>
+              <output data-for="chat.fontSize" data-fmt="px" class="mid"></output>
+              <button class="btn icon sm" data-action="font:bigger" data-target="chat" data-i18n-title="common.bigger"><i data-icon="plus"></i></button>
+            </div>
+            <div class="btn-row">
+              <button class="btn" data-action="chat:demo"><i data-icon="chat"></i><span data-i18n="chat.demo"></span></button>
+              <button class="btn" data-action="emotes:reload"><i data-icon="refresh"></i><span data-i18n="chat.reloadEmotes"></span></button>
+              <button class="btn" data-action="chat:clear"><i data-icon="trash"></i><span data-i18n="chat.clear"></span></button>
+              <button class="btn" data-action="twitch:reconnect"><i data-icon="plug"></i><span data-i18n="common.reconnect"></span></button>
+            </div>
+            <p class="hint warn" id="emoteErrors"></p>
+          </div>
+
+          <!-- OBS -->
+          <div class="card mode-card" data-card="obs">
+            <div class="card-head">
+              <h2 data-i18n="obs.title"></h2>
+              <span class="state" id="obsCardState"></span>
+            </div>
+            <div class="big-time" id="obsBig"></div>
+            <dl class="facts" id="obsFacts"></dl>
+            <div class="btn-row">
+              <button class="btn" data-action="obs:reconnect"><i data-icon="plug"></i><span data-i18n="common.reconnect"></span></button>
+            </div>
+          </div>
+
+          <!-- PowerPoint -->
+          <div class="card mode-card" data-card="ppt">
+            <div class="card-head">
+              <h2>PowerPoint</h2>
+              <span class="state" id="pptState"></span>
+            </div>
+            <div class="timer-row">
+              <div class="big-time" id="pptTimer">0:00</div>
+              <button class="btn" data-action="ppt:timerToggle" id="pptTimerToggle"><i data-icon="pause"></i><span></span></button>
+              <button class="btn" data-action="ppt:timerReset"><i data-icon="restart"></i><span data-i18n="ppt.reset"></span></button>
+            </div>
+            <dl class="facts" id="pptFacts"></dl>
+            <div class="notes-preview" id="pptNotesPreview"></div>
+            <div class="control-row">
+              <label data-i18n="common.font"></label>
+              <button class="btn icon sm" data-action="font:smaller" data-target="ppt" data-i18n-title="common.smaller"><i data-icon="minus"></i></button>
+              <output data-for="ppt.maxFontSize" data-fmt="px" class="mid"></output>
+              <button class="btn icon sm" data-action="font:bigger" data-target="ppt" data-i18n-title="common.bigger"><i data-icon="plus"></i></button>
+              <span class="push"></span>
+              <button class="btn icon sm" data-action="view:back" data-target="ppt" data-i18n-title="ppt.scrollUp"><i data-icon="chev-up"></i></button>
+              <button class="btn icon sm" data-action="view:forward" data-target="ppt" data-i18n-title="ppt.scrollDown"><i data-icon="chev-down"></i></button>
+            </div>
+            <label class="switch-inline"><span class="switch"><input type="checkbox" data-setting="ppt.autoSwitch"><span class="knob"></span></span><span data-i18n="ppt.autoSwitch"></span></label>
+          </div>
+
+          <!-- Kamera -->
+          <div class="card mode-card" data-card="camera">
+            <div class="card-head">
+              <h2 data-i18n="camera.title"></h2>
+              <span class="state" id="camState"></span>
+            </div>
+            <p class="hint" id="camInfo"></p>
+            <div class="field">
+              <label for="camDim"><span data-i18n="camera.dim"></span> <output data-for="camera.dim" data-fmt="pct"></output></label>
+              <input type="range" id="camDim" data-setting="camera.dim" min="0" max="0.9" step="0.05">
+            </div>
+            <div class="field">
+              <label for="camPlate"><span data-i18n="camera.plate"></span> <output data-for="camera.plate" data-fmt="pct"></output></label>
+              <input type="range" id="camPlate" data-setting="camera.plate" min="0" max="1" step="0.05">
+            </div>
+            <div class="field">
+              <label for="camOpacity"><span data-i18n="camera.textOpacity"></span> <output data-for="camera.textOpacity" data-fmt="pct"></output></label>
+              <input type="range" id="camOpacity" data-setting="camera.textOpacity" min="0.3" max="1" step="0.05">
+            </div>
+            <button class="link" data-goto="settings" data-anchor="sec-camera"><i data-icon="gear"></i><span data-i18n="camera.sourceLink"></span></button>
+          </div>
+
+          <!-- Verbindungen -->
+          <div class="card conn-card">
+            <h3 class="sub first" data-i18n="conn.title"></h3>
+            <ul class="conn-list" id="connList"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== SKRIPTE ============================== -->
+    <section class="page" id="page-scripts">
+      <div class="scripts-grid">
+        <aside class="card script-list">
+          <div class="card-head">
+            <h2 data-i18n="tab.scripts"></h2>
+            <button class="btn sm" id="newScript"><i data-icon="plus"></i><span data-i18n="scripts.new"></span></button>
+          </div>
+          <ul id="scriptList"></ul>
+        </aside>
+        <section class="card editor">
+          <input id="scriptTitle" class="title-input" data-i18n-placeholder="scripts.titlePlaceholder" autocomplete="off">
+          <textarea id="scriptBody" spellcheck="true" data-i18n-placeholder="scripts.bodyPlaceholder"></textarea>
+          <div class="editor-foot">
+            <span id="scriptStats"></span>
+            <span id="saveState" class="save-state"></span>
+            <span class="push"></span>
+            <button class="btn" id="deleteScript"><i data-icon="trash"></i><span></span></button>
+            <button class="btn primary" id="activateScript"><i data-icon="check"></i><span></span></button>
+          </div>
+          <details class="syntax">
+            <summary data-i18n="scripts.formatting"></summary>
+            <dl>
+              <dt data-i18n="scripts.fmt.heading"></dt><dd data-i18n="scripts.fmt.headingDesc"></dd>
+              <dt data-i18n="scripts.fmt.bold"></dt><dd data-i18n="scripts.fmt.boldDesc"></dd>
+              <dt data-i18n="scripts.fmt.italic"></dt><dd data-i18n="scripts.fmt.italicDesc"></dd>
+              <dt data-i18n="scripts.fmt.mark"></dt><dd data-i18n="scripts.fmt.markDesc"></dd>
+              <dt data-i18n="scripts.fmt.cue"></dt><dd data-i18n="scripts.fmt.cueDesc"></dd>
+              <dt>---</dt><dd data-i18n="scripts.fmt.ruleDesc"></dd>
+            </dl>
+          </details>
+        </section>
+      </div>
+    </section>
+
+    <!-- ============================== EINSTELLUNGEN ============================== -->
+    <section class="page" id="page-settings">
+      <div class="settings-grid" id="settingsForm"></div>
+    </section>
+  </main>
+
+  <!-- Handy -->
+  <dialog class="sheet" id="phoneDialog" aria-labelledby="phoneTitle">
+    <div class="sheet-head">
+      <h2 id="phoneTitle" tabindex="-1" autofocus data-i18n="phone.title"></h2>
+      <button class="btn icon sm" data-close-dialog data-i18n-title="common.close"><i data-icon="x"></i></button>
+    </div>
+    <div id="phoneBody"></div>
+  </dialog>
+
+  <!-- Einrichtung beim ersten Start -->
+  <dialog class="sheet setup" id="setupDialog" aria-labelledby="setupTitle">
+    <div class="sheet-head">
+      <h2 id="setupTitle" tabindex="-1" autofocus data-i18n="setup.title"></h2>
+    </div>
+    <p class="lead" data-i18n="setup.intro"></p>
+    <div class="field">
+      <label for="setupLang" data-i18n="settings.language"></label>
+      <select id="setupLang" data-setting="general.language" data-dyn="languages"></select>
+    </div>
+    <div class="field">
+      <label for="setupChannel" data-i18n="setup.channel"></label>
+      <input type="text" id="setupChannel" data-i18n-placeholder="setup.channelPlaceholder" autocomplete="off" spellcheck="false">
+      <small class="hint" data-i18n="setup.channelHint"></small>
+    </div>
+    <h3 class="sub" data-i18n="setup.checks"></h3>
+    <ul class="conn-list" id="setupChecks"></ul>
+    <label class="switch-row" id="setupAutostartRow"><span class="lbl"><span data-i18n="settings.autostart"></span><small class="hint" data-i18n="settings.autostartHint"></small></span><span class="switch"><input type="checkbox" data-setting="general.autostart"><span class="knob"></span></span></label>
+    <button class="btn primary wide" id="setupDone"><i data-icon="check"></i><span data-i18n="setup.done"></span></button>
+  </dialog>
+
+  <div class="offline-banner" id="offline" data-i18n="panel.offline"></div>
+
+  <script src="/common.js"></script>
+  <script src="/i18n.js"></script>
+  <script src="/qr.js"></script>
+  <script src="/panel.js"></script>
+</body>
+</html>

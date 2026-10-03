@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glanceline – Prompter</title>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/prompter.css">
+</head>
+<body data-mode="chat">
+  <div id="stage">
+    <video id="cam" autoplay muted playsinline></video>
+    <canvas id="camCanvas"></canvas>
+    <div id="camPlaceholder"><span data-i18n="p.cameraPlaceholder"></span></div>
+    <div id="dim"></div>
+
+    <div id="ui">
+      <header id="status">
+        <div class="st-left">
+          <span class="pill na" id="stLive"><i class="dot"></i><span>OBS –</span></span>
+          <span class="pill hidden" id="stRec"><i class="dot"></i><span></span></span>
+        </div>
+        <div class="st-center" id="stCenter"></div>
+        <div class="st-right" id="stClock">--:--</div>
+      </header>
+
+      <main id="content">
+        <section class="view" id="v-chat">
+          <div id="chatList"></div>
+        </section>
+
+        <section class="view" id="v-script">
+          <div id="scriptViewport"><div id="scriptText"></div></div>
+          <div id="guide"><i></i><i></i></div>
+          <div id="progress"><i></i></div>
+          <div id="countdown"></div>
+        </section>
+
+        <section class="view" id="v-obs">
+          <div class="obs-wrap">
+            <div class="obs-state" id="obsState">OBS</div>
+            <div class="obs-time" id="obsTime"></div>
+            <div class="obs-rec" id="obsRec"></div>
+            <div class="obs-scene" id="obsScene"></div>
+            <div class="obs-stats" id="obsStats"></div>
+          </div>
+        </section>
+
+        <section class="view" id="v-ppt" data-i18n-attr="data-more:p.more">
+          <div class="ppt-badge" id="pptBadge" data-i18n="p.editView"></div>
+          <div id="pptBox"><div id="pptNotes"></div></div>
+          <div id="pptNext"></div>
+        </section>
+
+        <section class="view" id="v-camera"></section>
+      </main>
+    </div>
+
+    <div id="toasts"></div>
+    <div id="camMsg"></div>
+    <div id="blackout"></div>
+    <div id="conn" data-i18n="p.connLost"></div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script src="/i18n.js"></script>
+  <script src="/voice-text.js"></script>
+  <script src="/prompter.js"></script>
+</body>
+</html>

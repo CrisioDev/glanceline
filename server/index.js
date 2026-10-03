@@ -1,0 +1,833 @@
+'use strict';
+const http = require('http');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { EventEmitter } = require('events');
+const { Store, DEFAULT_HOTKEYS, newId, newToken } = require('./store');
+const { TwitchChat } = require('./twitch');
+const { ObsClient } = require('./obs');
+const { PowerPointWatcher } = require('./powerpoint');
+const { VoiceEngine, VOICE_LANGUAGES } = require('./voice');
+const { resolveLang, translator } = require('../public/i18n');
+
+const t = (lang, key, vars) => translator(lang)(key, vars);
+
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+};
+const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
+const ROLES = ['main', 'preview', 'panel'];
+const HISTORY_SIZE = 120;
+
+const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const getPath = (obj, p) => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+const cleanText = (s) => String(s || '').replace(/\r\n?|\u000b/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+
+// Übernimmt nur Schlüssel, die es in den Einstellungen bereits gibt.
+function deepAssign(target, patch) {
+  for (const [k, v] of Object.entries(patch)) {
+    if (!(k in target)) continue;
+    if (isObj(v) && isObj(target[k])) deepAssign(target[k], v);
+    else target[k] = v;
+  }
+}
+
+// Heimnetz-Adressen, wahrscheinlichste zuerst (der QR-Code nutzt die erste)
+function lanUrls(port, token) {
+  const score = (name, ip) => {
+    let s = 0;
+    if (ip.startsWith('192.168.')) s += 30;
+    else if (ip.startsWith('10.')) s += 20;
+    else if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) s += 10;
+    if (/vethernet|virtualbox|vmware|wsl|hyper-v|loopback|docker|zerotier|tailscale|vpn/i.test(name)) s -= 50;
+    if (/wi-?fi|wlan|ethernet/i.test(name)) s += 5;
+    return s;
+  };
+  const out = [];
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    for (const a of list || []) {
+      if (a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) {
+        out.push({ name, url: `http://${a.address}:${port}/?t=${token}`, score: score(name, a.address) });
+      }
+    }
+  }
+  return out.sort((a, b) => b.score - a.score).map(({ name, url }) => ({ name, url }));
+}
+
+function readRaw(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(new Error('request too large'));
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function readBody(req, limit = 2 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(new Error('request too large'));
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on('end', () => {
+      if (!chunks.length) return resolve({});
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      } catch {
+        reject(new Error('invalid JSON'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res, data, status = 200) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(data));
+}
+
+class Glanceline extends EventEmitter {
+  constructor({ dataDir }) {
+    super();
+    this.store = new Store(dataDir);
+    this.clients = new Set();
+    this.history = [];
+    this.port = this.settings.general.port;
+    const startMode = this.settings.general.startMode;
+    this.live = {
+      now: Date.now(),
+      mode: MODES.includes(startMode) ? startMode : 'chat',
+      prevMode: null,
+      blackout: false,
+      script: { playing: false, pos: 0, max: 0 },
+      ppt: { running: false, mode: 'none', slide: 0, total: 0, title: '', notes: '', nextTitle: '', file: '', paused: false, timer: { running: false, startedAt: 0, acc: 0 } },
+      obs: {},
+      twitch: {},
+      camera: { active: false, error: '', label: '', devices: [] },
+      displays: [],
+      prompter: { kind: 'none', display: null },
+      hotkeys: { errors: [], suspended: false },
+      clients: { main: 0, preview: 0, panel: 0 },
+      lan: { enabled: false, port: this.port, urls: [] },
+      app: { desktop: false, autostart: false },
+      voice: {},
+      mics: [],
+    };
+    this.twitch = new TwitchChat(() => this.settings);
+    this.obs = new ObsClient(() => this.settings);
+    this.ppt = new PowerPointWatcher();
+    this.voice = new VoiceEngine({ dataDir });
+  }
+
+  get settings() {
+    return this.store.settings;
+  }
+
+  // Sprache der Spracherkennung: eingestellt oder passend zur Oberfläche (sofern ein Modell existiert)
+  voiceLang() {
+    const v = this.settings.voice.lang;
+    if (v !== 'auto') return v;
+    const ui = this.lang();
+    return VOICE_LANGUAGES.includes(ui) ? ui : 'en';
+  }
+
+  _syncVoice() {
+    if (this.settings.voice.enabled) this.voice.prepare(this.voiceLang());
+    else if (this.voice.status.state !== 'off' && this.voice.status.state !== 'downloading') this.voice.stop();
+  }
+
+  // Sprache für Texte, die der Server selbst erzeugt (Tray, Beispielinhalte)
+  lang() {
+    return resolveLang(this.settings.general.language);
+  }
+
+  baseUrl() {
+    return `http://127.0.0.1:${this.port}`;
+  }
+
+  async start() {
+    this.twitch.on('status', (st) => { this.live.twitch = st; this.touch(); });
+    this.twitch.on('message', (m) => this._chat(m));
+    this.twitch.on('clear', (c) => this._chatClear(c));
+    this.obs.on('status', (st) => { this.live.obs = st; this.touch(); });
+    this.ppt.on('update', (p) => this._ppt(p));
+    this.ppt.on('log', (l) => l && console.warn('[ppt]', l));
+    this.voice.on('status', (st) => { this.live.voice = { ...st, lang: this.voiceLang() }; this.touch(); });
+    this.voice.on('downloaded', () => this._syncVoice());
+    this.live.voice = { ...this.voice.status, lang: this.voiceLang() };
+
+    this.server = http.createServer((req, res) => {
+      this._handle(req, res).catch((err) => {
+        if (!res.headersSent) sendJson(res, { ok: false, error: err.message }, 500);
+        else res.end();
+      });
+    });
+    await this._listen();
+
+    this.twitch.start();
+    this.obs.start();
+    this.ppt.start();
+    this._syncVoice();
+    this.heartbeat = setInterval(() => {
+      for (const c of this.clients) c.res.write(': ping\n\n');
+    }, 20000);
+  }
+
+  stop() {
+    clearInterval(this.heartbeat);
+    this.twitch.stop();
+    this.obs.stop();
+    this.ppt.stop();
+    this.voice.stop();
+    this.store.flushAll();
+    for (const c of this.clients) {
+      try { c.res.end(); } catch { /* egal */ }
+    }
+    this.clients.clear();
+    if (this.server) {
+      this.server.close();
+      this.server.closeAllConnections();
+    }
+  }
+
+  // ---------- HTTP ----------
+
+  async _listen() {
+    const g = this.settings.general;
+    const host = g.lan ? '0.0.0.0' : '127.0.0.1';
+    let lastErr;
+    for (let port = g.port; port < g.port + 10; port++) {
+      try {
+        await this._listenOn(port, host);
+        this.port = port;
+        this._updateLan();
+        return;
+      } catch (e) {
+        lastErr = e;
+        if (e.code !== 'EADDRINUSE') break;
+      }
+    }
+    throw lastErr;
+  }
+
+  _listenOn(port, host) {
+    return new Promise((resolve, reject) => {
+      const onError = (e) => { this.server.off('listening', onListening); reject(e); };
+      const onListening = () => { this.server.off('error', onError); resolve(); };
+      this.server.once('error', onError);
+      this.server.once('listening', onListening);
+      this.server.listen(port, host);
+    });
+  }
+
+  async _relisten() {
+    for (const c of this.clients) {
+      try { c.res.end(); } catch { /* egal */ }
+    }
+    this.clients.clear();
+    await new Promise((resolve) => {
+      this.server.close(() => resolve());
+      this.server.closeAllConnections();
+    });
+    try {
+      await this._listen();
+    } catch (e) {
+      console.error('[server] Neustart fehlgeschlagen:', e.message);
+    }
+    this.emit('relisten', this.baseUrl());
+  }
+
+  _updateLan() {
+    const g = this.settings.general;
+    this.live.lan = { enabled: g.lan, port: this.port, urls: g.lan ? lanUrls(this.port, g.token) : [] };
+  }
+
+  _authorized(req, url, res) {
+    const ip = req.socket.remoteAddress || '';
+    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') return true;
+    const token = this.settings.general.token;
+    const cookie = /(?:^|;\s*)sfl=([^;]+)/.exec(req.headers.cookie || '');
+    if (url.searchParams.get('t') === token) {
+      res.setHeader('Set-Cookie', `sfl=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+      return true;
+    }
+    if (cookie && cookie[1] === token) return true;
+    res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end('<!doctype html><meta charset="utf-8"><title>Glanceline</title><h1>No access · Kein Zugriff</h1><p>Please open the link (or scan the QR code) from the Glanceline panel.<br>Bitte den Link bzw. QR-Code aus dem Glanceline-Panel verwenden.</p>');
+    return false;
+  }
+
+  // Schutz vor fremden Webseiten im eigenen Browser (CSRF, DNS-Rebinding)
+  _trusted(req, res) {
+    const host = String(req.headers.host || '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+    const hostOk = host === 'localhost' || host === '::1' || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+    let originOk = true;
+    if (req.headers.origin) {
+      try {
+        originOk = new URL(req.headers.origin).host === req.headers.host;
+      } catch {
+        originOk = false;
+      }
+    }
+    const type = String(req.headers['content-type'] || '');
+    const jsonOk = req.method !== 'POST' || type.startsWith('application/json') || (req.url.startsWith('/api/voice/audio') && type === 'application/octet-stream');
+    if (hostOk && originOk && jsonOk) return true;
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Verboten');
+    return false;
+  }
+
+  async _handle(req, res) {
+    const url = new URL(req.url, 'http://localhost');
+    if (!this._trusted(req, res) || !this._authorized(req, url, res)) return;
+    const p = url.pathname;
+
+    if (req.method === 'GET') {
+      if (p === '/') return this._file(res, 'panel.html');
+      if (p === '/prompter') return this._file(res, 'prompter.html');
+      if (p === '/events') return this._sse(req, res, url);
+      if (p === '/api/state') return sendJson(res, this._snapshot());
+      if (p === '/api/obs-frame') return this._obsFrame(res, url);
+      if (p === '/api/obs-sources') {
+        try {
+          return sendJson(res, { ok: true, ...(await this.obs.sources()) });
+        } catch (e) {
+          return sendJson(res, { ok: false, error: e.message, inputs: [], scenes: [] });
+        }
+      }
+      return this._file(res, decodeURIComponent(p.slice(1)));
+    }
+
+    if (req.method === 'POST' && p === '/api/voice/audio') {
+      const raw = await readRaw(req, 1024 * 1024);
+      const samples = new Float32Array(new Uint8Array(raw).buffer, 0, Math.floor(raw.length / 4));
+      this.voice.audio(samples, clamp(Number(url.searchParams.get('sr')) || 48000, 8000, 192000));
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    if (req.method === 'POST') {
+      const body = await readBody(req);
+      if (p === '/api/action') return sendJson(res, this.action(body) || { ok: true });
+      if (p === '/api/settings') {
+        this.patchSettings(body);
+        return sendJson(res, { ok: true });
+      }
+      if (p === '/api/scripts') return sendJson(res, this.scriptOp(body));
+      if (p === '/api/voice/script') {
+        const words = (Array.isArray(body.words) ? body.words : []).map((x) => ({ w: String(x.w || ''), h: Boolean(x.h) })).filter((x) => x.w);
+        this.voice.setScript(words);
+        return sendJson(res, { ok: true });
+      }
+      if (p === '/api/report') {
+        this.report(body);
+        return sendJson(res, { ok: true });
+      }
+    }
+
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Nicht gefunden');
+  }
+
+  _file(res, rel) {
+    const file = path.normalize(path.join(PUBLIC_DIR, rel));
+    if (!file.startsWith(PUBLIC_DIR + path.sep)) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    fs.readFile(file, (err, data) => {
+      if (err) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Nicht gefunden');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+      res.end(data);
+    });
+  }
+
+  _sse(req, res, url) {
+    const roleParam = url.searchParams.get('role');
+    const role = ROLES.includes(roleParam) ? roleParam : 'panel';
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
+    res.write('retry: 1500\n\n');
+    const client = { res, role };
+    this.clients.add(client);
+    this._write(client, 'init', this._snapshot());
+    this._countClients();
+    req.on('close', () => {
+      this.clients.delete(client);
+      this._countClients();
+    });
+  }
+
+  async _obsFrame(res, url) {
+    const source = this.settings.camera.obsSource;
+    if (!source) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('err.obs.noSource');
+      return;
+    }
+    const width = clamp(Number(url.searchParams.get('w')) || 1280, 160, 1920);
+    try {
+      const jpg = await this.obs.screenshot(source, width);
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' });
+      res.end(jpg);
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(e.message);
+    }
+  }
+
+  // ---------- Push an alle Clients ----------
+
+  _snapshot() {
+    return {
+      settings: this.settings,
+      scripts: this.store.scripts,
+      live: this._liveOut(),
+      history: this.history,
+      defaults: { hotkeys: DEFAULT_HOTKEYS },
+    };
+  }
+
+  _liveOut() {
+    this.live.now = Date.now();
+    return this.live;
+  }
+
+  _write(client, event, data) {
+    client.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
+  broadcast(event, data, filter) {
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const c of this.clients) if (!filter || filter(c)) c.res.write(payload);
+  }
+
+  // Live-Zustand gebündelt (max. ~25×/s) verteilen
+  touch() {
+    if (this.touchTimer) return;
+    this.touchTimer = setTimeout(() => {
+      this.touchTimer = null;
+      this.broadcast('live', this._liveOut());
+    }, 40);
+  }
+
+  _countClients() {
+    const counts = { main: 0, preview: 0, panel: 0 };
+    for (const c of this.clients) counts[c.role]++;
+    this.live.clients = counts;
+    this.touch();
+  }
+
+  _cmd(cmd) {
+    this.broadcast('cmd', cmd, (c) => c.role === 'main');
+  }
+
+  // ---------- Chat ----------
+
+  _chat(m) {
+    this.history.push(m);
+    if (this.history.length > HISTORY_SIZE) this.history.splice(0, this.history.length - HISTORY_SIZE);
+    this.broadcast('chat', m, (c) => c.role !== 'panel');
+  }
+
+  _chatClear(c) {
+    if (c.all) this.history = [];
+    else if (c.userId) this.history = this.history.filter((m) => !(m.kind === 'msg' && m.user.id === c.userId));
+    else if (c.msgId) this.history = this.history.filter((m) => m.id !== c.msgId);
+    this.broadcast('chatclear', c, (cl) => cl.role !== 'panel');
+  }
+
+  // Beispielnachrichten mit den echten Kanal-Emotes – zum Einstellen von Schrift & Emote-Größe
+  _demoChat() {
+    const de = this.lang() === 'de';
+    const ch = this.settings.chat.channel || 'streamer';
+    const user = (name, color, badges) => ({ id: `demo-${name}`, login: name.toLowerCase(), name, color, badges });
+    const msg = (u, text, extra = {}) => ({ kind: 'msg', user: u, action: false, first: false, highlight: false, tokens: this.twitch.tokenize(text, ''), ...extra });
+    const ev = (name, type, icon, key, vars, text) => ({ kind: 'event', user: user(name, '', []), action: false, tokens: text ? this.twitch.tokenize(text, '') : [], event: { type, icon, key, vars } });
+    const samples = [
+      msg(user('Brannoc', '#1E90FF', ['subscriber']), de ? 'Gute Session heute catKISS' : 'Great session today catKISS'),
+      msg(user('NightOwl', '#00FF7F', ['moderator', 'subscriber']), de ? 'Wann kommt endlich der Drache? GIGACHAD' : 'When does the dragon show up? GIGACHAD'),
+      msg(user('DiceGoblin', '#FF69B4', ['vip']), `@${ch} NAT 20!!! LETSGO LETSGO`, { highlight: true }),
+      ev('RaidSquad', 'raid', '⚔', 'ev.raid', { name: 'RaidSquad', n: 42 }),
+      msg(user('Lyra', '#8A2BE2', []), de ? 'Der Barde schon wieder OMEGALUL' : 'The bard again OMEGALUL', { first: true }),
+      ev('Goldcoin', 'sub', '★', 'ev.resub', { name: 'Goldcoin', n: 12, plan: ' (Tier 1)' }, de ? 'Danke für alles! peepoDJ' : 'Thanks for everything! peepoDJ'),
+      ev('7TV', 'emote', '✦', 'ev.emoteAdded', { actor: 'NightOwl', emote: 'catKISS' }, 'catKISS'),
+    ];
+    samples.forEach((m, i) => {
+      setTimeout(() => this._chat({ ...m, id: `demo-${Date.now()}-${i}`, ts: Date.now() }), i * 450);
+    });
+  }
+
+  // ---------- PowerPoint ----------
+
+  _ppt(p) {
+    const prev = this.live.ppt;
+    const timer = prev.timer;
+    const inShow = (m) => m === 'show' || m === 'end';
+    const wasShow = inShow(prev.mode);
+    const isShow = inShow(p.mode);
+    this.live.ppt = {
+      running: Boolean(p.running),
+      mode: p.mode || 'none',
+      slide: Number(p.slide) || 0,
+      total: Number(p.total) || 0,
+      title: cleanText(p.title),
+      notes: cleanText(p.notes),
+      nextTitle: cleanText(p.nextTitle),
+      file: String(p.file || ''),
+      paused: Boolean(p.paused),
+      timer,
+    };
+    if (isShow && !wasShow) {
+      Object.assign(timer, { running: true, startedAt: Date.now(), acc: 0 });
+      if (this.settings.ppt.autoSwitch && this.live.mode !== 'ppt') {
+        const before = this.live.mode;
+        this._setMode('ppt');
+        this.live.prevMode = before;
+      }
+    }
+    if (!isShow && wasShow) {
+      if (timer.running) Object.assign(timer, { running: false, acc: timer.acc + Date.now() - timer.startedAt });
+      if (this.settings.ppt.autoSwitch && this.live.mode === 'ppt' && this.live.prevMode) this._setMode(this.live.prevMode);
+      this.live.prevMode = null;
+    }
+    this.touch();
+  }
+
+  // ---------- Aktionen (Panel, Hotkeys, Tray) ----------
+
+  _setMode(mode) {
+    if (!MODES.includes(mode)) return;
+    if (this.live.mode === 'script' && mode !== 'script') this.live.script.playing = false;
+    this.live.mode = mode;
+    this.live.prevMode = null;
+    this.live.blackout = false;
+  }
+
+  action(a = {}) {
+    const L = this.live;
+    const s = this.settings;
+    const type = String(a.type || '');
+
+    if (type.startsWith('mode:')) {
+      this._setMode(type.slice(5));
+      this.touch();
+      return { ok: true };
+    }
+
+    switch (type) {
+      case 'blackout':
+        L.blackout = typeof a.value === 'boolean' ? a.value : !L.blackout;
+        break;
+      case 'camera:toggle':
+        this.patchSettings({ camera: { enabled: !s.camera.enabled } });
+        break;
+      case 'mirror:toggle':
+        this.patchSettings({ display: { mirror: !s.display.mirror } });
+        break;
+
+      case 'script:toggle':
+        return this.action({ type: L.script.playing ? 'script:pause' : 'script:play' });
+      case 'script:play':
+        if (L.script.max > 0 && L.script.pos >= L.script.max - 2) {
+          L.script.pos = 0;
+          this._cmd({ cmd: 'seek', pos: 0 });
+        }
+        if (L.mode !== 'script') this._setMode('script');
+        L.script.playing = true;
+        break;
+      case 'script:pause':
+        L.script.playing = false;
+        break;
+      case 'script:restart':
+        L.script.playing = false;
+        L.script.pos = 0;
+        this.voice.seek(0);
+        this._cmd({ cmd: 'seek', pos: 0 });
+        break;
+      case 'script:faster':
+      case 'script:slower': {
+        const sp = s.script.speed;
+        const step = Math.max(4, Math.round(sp * 0.12));
+        this.patchSettings({ script: { speed: sp + (type === 'script:faster' ? step : -step) } });
+        break;
+      }
+      case 'script:prevSection':
+      case 'script:nextSection':
+        this._cmd({ cmd: 'section', dir: type === 'script:nextSection' ? 1 : -1 });
+        break;
+      case 'script:section':
+        this._cmd({ cmd: 'sectionIndex', index: Number(a.index) || 0 });
+        break;
+      case 'script:seek':
+        this._cmd({ cmd: 'seekFrac', frac: clamp(Number(a.frac) || 0, 0, 1) });
+        break;
+      case 'script:select':
+        return this.scriptOp({ op: 'activate', id: a.id });
+
+      case 'view:back':
+      case 'view:forward': {
+        const dir = type === 'view:back' ? -1 : 1;
+        const target = a.target || L.mode;
+        if (target === 'script') this._cmd({ cmd: 'nudge', dir });
+        else if (target === 'ppt') this._cmd({ cmd: 'pptScroll', dir });
+        break;
+      }
+      case 'font:bigger':
+      case 'font:smaller': {
+        const d = type === 'font:bigger' ? 1 : -1;
+        const target = a.target || L.mode;
+        if (target === 'chat') this.patchSettings({ chat: { fontSize: s.chat.fontSize + 2 * d } });
+        else if (target === 'script') this.patchSettings({ script: { fontSize: s.script.fontSize + 4 * d } });
+        else if (target === 'ppt') this.patchSettings({ ppt: { maxFontSize: s.ppt.maxFontSize + 4 * d, minFontSize: s.ppt.minFontSize + 2 * d } });
+        break;
+      }
+
+      case 'ppt:timerReset':
+        Object.assign(L.ppt.timer, { acc: 0, startedAt: Date.now() });
+        break;
+      case 'ppt:timerToggle': {
+        const t = L.ppt.timer;
+        if (t.running) Object.assign(t, { running: false, acc: t.acc + Date.now() - t.startedAt });
+        else Object.assign(t, { running: true, startedAt: Date.now() });
+        break;
+      }
+
+      case 'chat:clear':
+        this._chatClear({ all: true });
+        break;
+      case 'voice:toggle':
+        this.patchSettings({ voice: { enabled: !s.voice.enabled } });
+        break;
+      case 'voice:download':
+        this.voice.download(VOICE_LANGUAGES.includes(a.lang) ? a.lang : this.voiceLang());
+        break;
+      case 'voice:delete':
+        if (VOICE_LANGUAGES.includes(a.lang)) this.voice.deleteModel(a.lang);
+        break;
+      case 'chat:demo':
+        this._demoChat();
+        break;
+      case 'emotes:reload':
+        this.twitch.reloadEmotes();
+        break;
+      case 'twitch:reconnect':
+        this.twitch.restart();
+        break;
+      case 'obs:reconnect':
+        this.obs.restart();
+        break;
+
+      case 'hotkeys:suspend':
+        // Während im Panel ein Kürzel aufgenommen wird, dürfen die globalen Hotkeys nicht greifen
+        L.hotkeys.suspended = true;
+        this.emit('hotkeys:suspend', true);
+        clearTimeout(this.hotkeyResumeTimer);
+        this.hotkeyResumeTimer = setTimeout(() => this.action({ type: 'hotkeys:resume' }), 30000);
+        break;
+      case 'hotkeys:resume':
+        clearTimeout(this.hotkeyResumeTimer);
+        if (L.hotkeys.suspended) {
+          L.hotkeys.suspended = false;
+          this.emit('hotkeys:suspend', false);
+        }
+        break;
+
+      case 'token:regen':
+        this.patchSettings({ general: { token: newToken() } });
+        break;
+      case 'prompter:place':
+        this.emit('display');
+        break;
+
+      default:
+        return { ok: false, error: `unknown action: ${type}` };
+    }
+    this.touch();
+    return { ok: true };
+  }
+
+  patchSettings(patch) {
+    if (!isObj(patch)) return;
+    const watched = ['chat.channel', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
+    const snap = (k) => JSON.stringify(getPath(this.settings, k));
+    const before = Object.fromEntries(watched.map((k) => [k, snap(k)]));
+
+    deepAssign(this.settings, patch);
+    this.store.sanitize();
+    this.store.save('settings');
+
+    const changed = (k) => before[k] !== snap(k);
+    if (changed('chat.channel')) {
+      this.history = [];
+      this.broadcast('chatclear', { all: true }, (c) => c.role !== 'panel');
+      this.twitch.restart();
+    } else if (changed('chat.providers')) {
+      this.twitch.reloadEmotes();
+    }
+    if (changed('obs')) this.obs.restart();
+    if (changed('hotkeys')) this.emit('hotkeys');
+    if (changed('display')) this.emit('display');
+    if (changed('general.autostart')) this.emit('autostart');
+    if (changed('general.language')) this.emit('language');
+    if (changed('voice.enabled') || changed('voice.lang') || (changed('general.language') && this.settings.voice.lang === 'auto')) this._syncVoice();
+    if (changed('general.lan') || changed('general.port')) {
+      setTimeout(() => this._relisten(), 150); // erst die laufende Antwort zustellen
+    } else if (changed('general.token')) {
+      this._updateLan();
+      this.touch();
+    }
+    this.broadcast('settings', this.settings);
+  }
+
+  scriptOp(b = {}) {
+    const sc = this.store.scripts;
+    const find = (id) => sc.items.find((x) => x.id === id);
+    switch (b.op) {
+      case 'create': {
+        const item = { id: newId(), title: String(b.title || t(this.lang(), 'scripts.newTitle')), body: String(b.body || ''), updatedAt: Date.now() };
+        sc.items.push(item);
+        if (!sc.activeId) sc.activeId = item.id;
+        this._scriptsChanged();
+        return { ok: true, id: item.id, item };
+      }
+      case 'save': {
+        const it = find(b.id);
+        if (!it) return { ok: false, error: 'script not found' };
+        if (typeof b.title === 'string') it.title = b.title;
+        if (typeof b.body === 'string') it.body = b.body;
+        it.updatedAt = Date.now();
+        this._scriptsChanged();
+        return { ok: true };
+      }
+      case 'delete': {
+        sc.items = sc.items.filter((x) => x.id !== b.id);
+        if (sc.activeId === b.id) {
+          sc.activeId = sc.items.length ? sc.items[0].id : null;
+          this._resetScript();
+        }
+        this._scriptsChanged();
+        return { ok: true };
+      }
+      case 'activate': {
+        if (!find(b.id)) return { ok: false, error: 'script not found' };
+        if (sc.activeId !== b.id) {
+          sc.activeId = b.id;
+          this._resetScript();
+        }
+        this._scriptsChanged();
+        return { ok: true };
+      }
+      default:
+        return { ok: false, error: 'unknown operation' };
+    }
+  }
+
+  _resetScript() {
+    Object.assign(this.live.script, { playing: false, pos: 0 });
+    this.voice.seek(0);
+    this.touch();
+  }
+
+  _scriptsChanged() {
+    this.store.save('scripts');
+    this.broadcast('scripts', this.store.scripts);
+  }
+
+  // Rückmeldungen vom Prompter-Fenster
+  report(b = {}) {
+    const L = this.live;
+    if (b.kind === 'script') {
+      if (Number.isFinite(b.pos)) L.script.pos = b.pos;
+      if (Number.isFinite(b.max)) L.script.max = b.max;
+      if (b.ended) L.script.playing = false;
+    } else if (b.kind === 'voice-seek') {
+      if (Number.isFinite(b.pos)) this.voice.seek(b.pos);
+      return;
+    } else if (b.kind === 'voice-level') {
+      L.voiceLevel = Math.max(0, Math.min(1, Number(b.level) || 0));
+    } else if (b.kind === 'devices') {
+      L.camera.devices = (Array.isArray(b.devices) ? b.devices : [])
+        .map((d) => ({ label: String((d && d.label) || '') }))
+        .filter((d) => d.label);
+      L.mics = (Array.isArray(b.mics) ? b.mics : []).map((d) => ({ label: String((d && d.label) || '') })).filter((d) => d.label);
+    } else if (b.kind === 'camera') {
+      Object.assign(L.camera, { active: Boolean(b.active), error: String(b.error || ''), label: String(b.label || '') });
+    } else {
+      return;
+    }
+    this.touch();
+  }
+
+  // ---------- Infos aus Electron ----------
+
+  setDisplays(list) {
+    this.live.displays = list;
+    this.touch();
+  }
+
+  setPrompterInfo(info) {
+    this.live.prompter = info;
+    this.touch();
+  }
+
+  setHotkeyErrors(errors) {
+    this.live.hotkeys.errors = errors;
+    this.touch();
+  }
+
+  setAppInfo(info) {
+    Object.assign(this.live.app, info);
+    this.touch();
+  }
+}
+
+module.exports = { Glanceline, MODES };
+
+// Ohne Electron starten: `npm run server` → Panel im Browser, Prompter unter /prompter
+if (require.main === module) {
+  const { dataDir, migrateLegacyData } = require('./paths');
+  migrateLegacyData(dataDir());
+  const core = new Glanceline({ dataDir: dataDir() });
+  core
+    .start()
+    .then(() => console.log(`Glanceline läuft: ${core.baseUrl()}  ·  Prompter-Ansicht: ${core.baseUrl()}/prompter`))
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+  const bye = () => {
+    core.stop();
+    process.exit(0);
+  };
+  process.on('SIGINT', bye);
+  process.on('SIGTERM', bye);
+}
