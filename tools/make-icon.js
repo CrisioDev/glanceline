@@ -138,4 +138,6 @@ square = true;
 fs.writeFileSync(path.join(ROOT, 'public', 'icon-180.png'), render(180));
 fs.writeFileSync(path.join(ROOT, 'public', 'icon-192.png'), render(192));
 fs.writeFileSync(path.join(ROOT, 'public', 'icon-512.png'), render(512));
+// macOS-App-Symbol (electron-builder braucht mindestens 512 px)
+fs.writeFileSync(path.join(ROOT, 'assets', 'icon-1024.png'), render(1024));
 console.log('Icons erzeugt: assets/icon.png, assets/icon.ico, public/icon*.png');

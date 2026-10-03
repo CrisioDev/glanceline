@@ -17,7 +17,8 @@
     "check:i18n": "node tools/check-i18n.js",
     "pack:streamdeck": "node tools/pack-streamdeck.js",
     "icons:streamdeck": "electron tools/make-streamdeck-assets.js",
-    "pack:slides": "node tools/pack-slides.js"
+    "pack:slides": "node tools/pack-slides.js",
+    "dist:mac": "electron-builder --mac"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -44,7 +45,10 @@
       "integrations/chrome-slides/**",
       "server/voice-worker.js",
       "node_modules/sherpa-onnx-node/**",
-      "node_modules/sherpa-onnx-win-x64/**"
+      "node_modules/sherpa-onnx-win-x64/**",
+      "server/mac-slides.js",
+      "node_modules/sherpa-onnx-darwin-arm64/**",
+      "node_modules/sherpa-onnx-darwin-x64/**"
     ],
     "win": {
       "icon": "assets/icon.ico",
@@ -74,6 +78,24 @@
     },
     "portable": {
       "artifactName": "Glanceline-${version}-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg"
+        },
+        {
+          "target": "zip"
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon-1024.png",
+      "artifactName": "Glanceline-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Glanceline reads the current slide and speaker notes from Keynote or PowerPoint.",
+        "NSCameraUsageDescription": "Glanceline can show your camera image behind the prompter text.",
+        "NSMicrophoneUsageDescription": "Voice tracking listens to you and follows your script."
+      }
     }
   },
   "dependencies": {

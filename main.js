@@ -64,7 +64,9 @@ app.on('will-quit', () => {
 });
 
 async function boot() {
-  Menu.setApplicationMenu(null);
+  // macOS braucht ein App-Menü, sonst gehen Kopieren/Einfügen (Cmd+C/V) und Beenden (Cmd+Q) nicht
+  Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
+  if (process.platform === 'darwin') app.on('activate', () => showPanel());
   const dir = process.env.GLANCELINE_DATA ? path.resolve(process.env.GLANCELINE_DATA) : app.getPath('userData');
   if (migrateLegacyData(dir)) console.log(`[glanceline] settings migrated to ${dir}`);
   core = new Glanceline({ dataDir: dir });
@@ -143,7 +145,8 @@ async function boot() {
   placePrompter();
   // Prompter wurde mit Glanceline abgemeldet → beim Start wieder anmelden
   if (core.settings.display.powerWithApp && core.settings.windowState.standby && !SNAPSHOT_DIR) prompterPower(true);
-  if (!process.argv.includes('--hidden')) showPanel();
+  const openedHidden = process.argv.includes('--hidden') || (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAsHidden);
+  if (!openedHidden) showPanel();
   if (SNAPSHOT_DIR) runSnapshot(SNAPSHOT_DIR);
 }
 
@@ -615,11 +618,14 @@ function readAutostart() {
 
 function applyAutostart() {
   if (!core) return;
-  // Eintrag des alten Projektnamens entfernen (harmlos, falls nicht vorhanden)
-  try { app.setLoginItemSettings({ openAtLogin: false, name: 'Souffleur' }); } catch { /* egal */ }
   const wanted = core.settings.general.autostart;
+  // Eintrag des alten Projektnamens entfernen (harmlos, falls nicht vorhanden)
+  if (process.platform === 'win32') {
+    try { app.setLoginItemSettings({ openAtLogin: false, name: 'Souffleur' }); } catch { /* egal */ }
+  }
   try {
-    app.setLoginItemSettings({ ...loginItem(), openAtLogin: wanted, enabled: wanted });
+    if (process.platform === 'darwin') app.setLoginItemSettings({ openAtLogin: wanted, openAsHidden: true });
+    else app.setLoginItemSettings({ ...loginItem(), openAtLogin: wanted, enabled: wanted });
   } catch (e) {
     console.error('[autostart]', e.message);
   }
