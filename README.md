@@ -20,9 +20,9 @@ You switch between them with one click or a global hotkey. You can also place yo
 | Mode | What you see on the prompter |
 |---|---|
 | **Chat** | **Twitch, YouTube and Kick** in one chat, read anonymously (no login, no API key), with platform icons and viewer counts: <br>• YouTube Super Chats, memberships and gifts; Kick subs, gifts, hosts and Kicks <br>• Optional Twitch login for follows, all channel-point redemptions, hype trains, polls, predictions and ad breaks (with a countdown on the prompter) <br>• Emotes from Twitch, **7TV**, BTTV and FFZ, including zero-width emotes <br>• **Live 7TV updates**: added or removed emotes show up instantly <br>• Highlighted subs, gift subs, raids, bits and @mentions <br>• Channel-point messages, first-time and returning chatters, Shared Chat marked <br>• **Pause and rewind** the chat by hotkey <br>• Bot and !command filters |
-| **Script** | Teleprompter that can **follow your voice** – offline, any CPU, English/German/French/Spanish. It waits while you ad-lib and catches up when you skip ahead. Also includes: <br>• a reading line and a countdown <br>• speed control <br>• Markdown sections you can jump between by hotkey <br>• stage-direction tags like `[Pause]` <br>• **Clicker & foot pedal** support (PageUp/PageDown or any key you choose) <br>• **Quick inserts**: a hotkey drops in a short script (raid thank-you, ad read), then jumps back to where you were <br>• right-to-left scripts and reverse scrolling <br>• **Run of show**: target times per section (`## Intro {2:00}`), ahead/behind display and a show countdown <br>• **Import** Word (.docx), Markdown and text files, paste from Word or Google Docs with formatting, or **link a folder** that stays in sync while you edit in Obsidian, VS Code or Word |
+| **Script** | Teleprompter that can **follow your voice** – offline, any CPU, English/German/French/Spanish, plus 26 more languages with an optional larger model. It glides along smoothly instead of jumping line by line. It waits while you ad-lib and catches up when you skip ahead. Also includes: <br>• a reading line and a countdown <br>• speed control <br>• Markdown sections you can jump between by hotkey <br>• stage-direction tags like `[Pause]` <br>• **Clicker & foot pedal** support (PageUp/PageDown or any key you choose) <br>• **Quick inserts**: a hotkey drops in a short script (raid thank-you, ad read), then jumps back to where you were <br>• right-to-left scripts and reverse scrolling <br>• **Run of show**: target times per section (`## Intro {2:00}`), ahead/behind display and a show countdown <br>• **Import** Word (.docx), Markdown and text files, paste from Word or Google Docs with formatting, or **link a folder** that stays in sync while you edit in Obsidian, VS Code or Word |
 | **OBS** | LIVE/REC timers, current scene, FPS, CPU, bitrate and dropped frames (via obs-websocket) |
-| **PowerPoint** | Speaker notes of the **current slide**, synced automatically, presenter clickers included. Text auto-fits, with next-slide title and talk timer. Switches on when the slideshow starts. |
+| **Slides** | Speaker notes of the **current slide** from **PowerPoint**, **Google Slides** (small Chrome extension) or **Keynote** (Mac), synced automatically, presenter clickers included. Text auto-fits, with next-slide title and talk timer. Switches on when the slideshow starts. |
 | **Camera** | Your camera image as a confidence monitor |
 
 Also included:
@@ -32,6 +32,8 @@ Also included:
 - **Control from anywhere.** Desktop panel with a live preview, your phone (scan a QR code, add to home screen), an OBS custom dock, **global hotkeys**, MIDI controllers, or the **Stream Deck plugin** with live state on the keys (one-click install from the panel).
 - **Hold to scroll:** hold a clicker, pedal, hotkey, Stream Deck key or MIDI pad and the script scrolls smoothly.
 - **Virtual prompter:** no prompter hardware? A floating window under your webcam that OBS, Zoom and screen sharing can’t see.
+- **More outputs:** a second prompter, a co-host or camera-operator monitor – each shows the main mode or a fixed one (e.g. chat while you read the script).
+- **Prompter off:** disconnect the prompter display with one click or hotkey so it stays dark, even after the PC wakes from sleep – or only keep it on while Glanceline runs (Windows).
 - **Profiles:** save the look (fonts, sizes, speed, camera, timers) as “Stream”, “Talk” or “Recording” and switch by click, hotkey or automatically per mode or script.
 - **Local API** for Companion, Touch Portal and your own scripts – see [docs/API.md](docs/API.md).
 - **Eye-line aids:** lens crosshair, narrow text column, centered text. Any installed font, OpenDyslexic, high-contrast mode and a software dimmer against reflections.
@@ -43,8 +45,8 @@ Also included:
 
 ## Requirements
 
-- **Windows 10/11.** PowerPoint sync uses Windows COM. macOS support is planned.
-- Optional: OBS Studio 28+ (obs-websocket is built in) and Microsoft PowerPoint.
+- **Windows 10/11**, or **macOS 12+** on Apple Silicon. The macOS build is new and unsigned: right-click the app → *Open* the first time. On Windows, PowerPoint sync uses COM; on macOS, Keynote and PowerPoint are read via AppleScript (macOS asks once for permission).
+- Optional: OBS Studio 28+ (obs-websocket is built in), Microsoft PowerPoint, Keynote, or Chrome for Google Slides.
 
 ## Installation
 

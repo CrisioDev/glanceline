@@ -27,6 +27,7 @@ Glanceline blocks requests that a **web page in your browser** tries to send to 
 | `POST /api/settings` | Change settings. Send only the keys you want to change, e.g. `{"script":{"speed":90}}`. Unknown keys are ignored, values are range-checked. |
 | `POST /api/scripts` | Manage scripts, see [Scripts](#scripts). |
 | `GET /api/streamdeck-plugin` | Download the Stream Deck plugin (`.streamDeckPlugin`). |
+| `POST /api/slides` | Report the current slide from an external source: `{ slide, total, notes, presentation }`, or `{ running: false }` at the end. Send it at least every 8 s while presenting. Used by the Google Slides extension – the only endpoint that also accepts requests from browser extensions. |
 
 Every response has `ok: true` on success, or `ok: false` with an `error` message.
 
@@ -45,6 +46,8 @@ Send them as `POST /api/action` with a JSON body. `type` is required; some actio
 | `mirror:toggle` | | Mirror the prompter image. |
 | `font:bigger`, `font:smaller` | `target` (optional: `chat`, `script`, `ppt`) | Change the font size of the current or given mode. |
 | `prompter:place` | | Search for the prompter display again. |
+| `prompter:power` | `on` (optional, `true`/`false`) | Turn the prompter display off (disconnect it in Windows) or on again. Toggles when `on` is missing. |
+| `output:add`, `output:update`, `output:remove` | `id`, `patch` (`name`, `display`, `mode`, `mirror`, `enabled`) | Manage extra outputs. |
 
 ### Script
 
