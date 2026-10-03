@@ -352,6 +352,8 @@
     readUpTo: 0,
     voiceManualUntil: 0,
     voiceResync: false,
+    holdDir: 0, // gehaltene Clicker-/Hotkey-Taste: −1, 0, 1
+    holdUntil: 0,
     restoreToken: 0,
     sectionIdx: -2,
   };
@@ -525,6 +527,19 @@
       case 'sectionIndex':
         if (sv.headings[c.index] != null) sv.tween = sv.headings[c.index] - sv.pos;
         break;
+      case 'hold':
+        if (c.dir) {
+          sv.holdDir = c.dir;
+          sv.holdUntil = Date.now() + 450; // ohne Nachricht vom Server hört das Scrollen von selbst auf
+          if (voiceOn()) sv.voiceManualUntil = Date.now() + 1500;
+        } else {
+          sv.holdDir = 0;
+          if (voiceOn()) {
+            sv.voiceManualUntil = Date.now() + 1500;
+            sv.voiceResync = true;
+          }
+        }
+        break;
       case 'pptScroll':
         pptBox.scrollBy({ top: c.dir * pptBox.clientHeight * 0.45, behavior: 'smooth' });
         break;
@@ -544,6 +559,8 @@
       const follow = voiceOn() && sv.playing;
       const dir = (live && live.script.dir) || 1;
       if (sv.playing && !counting && !follow) sv.pos += speed * dt * dir;
+      if (sv.holdDir && now < sv.holdUntil) sv.pos += Math.max(320, speed * 4) * dt * sv.holdDir;
+      else if (sv.holdDir) sv.holdDir = 0;
       if (follow && !sv.tween && now > sv.voiceManualUntil) {
         const target = voiceTarget();
         if (target != null) {

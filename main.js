@@ -362,6 +362,47 @@ function showPanel() {
 
 // ---------------------------------------------------------------- Hotkeys
 
+// ---------------------------------------------------------------- Tasten gedrückt halten
+// Windows wiederholt gehaltene Tasten (nach ~0,5 s rund 30×/s) – auch bei globalen Hotkeys.
+// Daraus wird: Scrollen im Skript läuft flüssig weiter, solange die Taste gehalten wird;
+// Stufen (Schrift, Tempo) höchstens 5×/s; Umschalter wie Start/Pause nur einmal pro Druck.
+const REPEAT_GAP_MS = 100; // so schnell tippt niemand – das ist Autorepeat
+const TOGGLE_GUARD_MS = 650;
+const STEP_ACTIONS = new Set(['font:bigger', 'font:smaller', 'script:faster', 'script:slower', 'view:back', 'view:forward']);
+const presses = new Map();
+
+function onPress(id, act) {
+  const now = Date.now();
+  const st = presses.get(id) || { last: 0, fired: 0, holding: false, sent: 0, timer: null };
+  presses.set(id, st);
+  const gap = now - st.last;
+  st.last = now;
+
+  const scroll = (act.type === 'view:back' || act.type === 'view:forward') && (act.target || core.live.mode) === 'script';
+  if (scroll && gap < REPEAT_GAP_MS) {
+    const dir = act.type === 'view:forward' ? 1 : -1;
+    if (!st.holding || now - st.sent > 150) {
+      st.holding = true;
+      st.sent = now;
+      core.action({ type: 'script:hold', dir });
+    }
+    clearTimeout(st.timer);
+    st.timer = setTimeout(() => {
+      st.holding = false;
+      core.action({ type: 'script:hold', dir: 0 });
+    }, 200);
+    return;
+  }
+  if (STEP_ACTIONS.has(act.type)) {
+    if (now - st.fired < 200) return;
+    st.fired = now;
+    core.action(act);
+    return;
+  }
+  if (gap < TOGGLE_GUARD_MS) return; // gehaltener Umschalter
+  core.action(act);
+}
+
 function registerHotkeys() {
   globalShortcut.unregisterAll();
   if (!core) return;
@@ -380,7 +421,7 @@ function registerHotkeys() {
     }
     used.add(key);
     try {
-      const ok = globalShortcut.register(accel, () => core.action({ type: action, source: 'hotkey' }));
+      const ok = globalShortcut.register(accel, () => onPress(action, { type: action, source: 'hotkey' }));
       if (!ok) errors.push({ action, accel, error: 'taken' });
     } catch {
       errors.push({ action, accel, error: 'invalid' });
@@ -400,7 +441,7 @@ function registerHotkeys() {
       if (!accel || used.has(accel.toLowerCase())) continue;
       used.add(accel.toLowerCase());
       try {
-        const ok = globalShortcut.register(accel, () => core.action({ ...act, source: 'clicker' }));
+        const ok = globalShortcut.register(accel, () => onPress(`clicker:${slot}`, { ...act, source: 'clicker' }));
         if (!ok) errors.push({ action: `clicker:${slot}`, accel, error: 'taken' });
       } catch {
         errors.push({ action: `clicker:${slot}`, accel, error: 'invalid' });

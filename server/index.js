@@ -715,6 +715,12 @@ class Glanceline extends EventEmitter {
         this.patchSettings({ script: { speed: sp + (type === 'script:faster' ? step : -step) } });
         break;
       }
+      case 'script:hold': {
+        // Taste gehalten: flüssig scrollen (dir 0 = loslassen)
+        const dir = Math.sign(Number(a.dir) || 0);
+        this._cmd({ cmd: 'hold', dir });
+        break;
+      }
       case 'script:prevSection':
       case 'script:nextSection':
         this._cmd({ cmd: 'section', dir: type === 'script:nextSection' ? 1 : -1 });
