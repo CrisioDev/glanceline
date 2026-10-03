@@ -725,7 +725,10 @@
       <h3 class="sub">${esc(t('integ.api'))}</h3>
       <p class="hint">${esc(t('integ.apiHint'))}</p>
       <div class="url-row"><code id="apiUrl"></code><button class="btn icon sm" data-copy-from="apiUrl" title="${esc(t('common.copy'))}"><i data-icon="copy"></i></button></div>
-      <p class="hint">${esc(t('integ.companion'))}</p>`;
+      <p class="hint">${esc(t('integ.companion'))}</p>
+      <h3 class="sub">Google Slides</h3>
+      <p class="hint">${esc(t('integ.slidesHint'))}</p>
+      <div class="btn-row"><button class="btn sm" data-action="slides:folder" id="slidesFolder"><i data-icon="folder"></i><span>${esc(t('integ.slidesFolder'))}</span></button></div>`;
   }
 
   function renderIntegrations() {
@@ -737,6 +740,7 @@
     btn.hidden = !IS_LOCAL || !sd.found;
     setText(btn.querySelector('span'), sd.installed ? t('integ.sdUpdate') : t('integ.sdInstall'));
     setText($('#apiUrl'), `${location.origin}/api/action`);
+    $('#slidesFolder').hidden = !IS_LOCAL || !(live.app && live.app.desktop);
   }
 
   function hotkeysHtml() {

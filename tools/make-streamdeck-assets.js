@@ -46,5 +46,12 @@ app.whenReady().then(async () => {
   const appIcon = nativeImage.createFromPath(path.join(ROOT, 'assets', 'icon.png'));
   out('plugin.png', appIcon.resize({ width: 144, height: 144, quality: 'best' }).toPNG());
   out('plugin@2x.png', appIcon.resize({ width: 256, height: 256, quality: 'best' }).toPNG());
+  // Symbole der Google-Slides-Erweiterung
+  const ext = path.join(ROOT, 'integrations', 'chrome-slides', 'icons');
+  fs.mkdirSync(ext, { recursive: true });
+  for (const size of [16, 32, 48, 128]) {
+    fs.writeFileSync(path.join(ext, `${size}.png`), appIcon.resize({ width: size, height: size, quality: 'best' }).toPNG());
+    console.log(`   chrome-slides/icons/${size}.png`);
+  }
   app.quit();
 });

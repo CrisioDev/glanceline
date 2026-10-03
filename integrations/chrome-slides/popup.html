@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Glanceline</title>
+  <style>
+    body { width: 300px; margin: 0; padding: 14px 16px; font: 13px/1.45 "Segoe UI", system-ui, sans-serif; background: #f8f4ec; color: #3b2f2a; }
+    h1 { margin: 0 0 8px; font: 600 18px Georgia, serif; color: #7d3b34; }
+    .state { padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid #e6dccd; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; font-weight: 600; }
+    ol { margin: 10px 0; padding-left: 18px; }
+    label { display: block; margin-top: 10px; font-size: 12px; color: #6b5a50; }
+    input { width: 100%; box-sizing: border-box; margin-top: 3px; padding: 6px 8px; border: 1px solid #d9ccba; border-radius: 6px; font: inherit; background: #fffdf9; }
+  </style>
+</head>
+<body>
+  <h1>Glanceline</h1>
+  <div class="state" id="state"></div>
+  <ol id="steps"></ol>
+  <label><span id="urlLabel"></span><input id="url" spellcheck="false" placeholder="http://127.0.0.1:4890"></label>
+  <script src="popup.js"></script>
+</body>
+</html>

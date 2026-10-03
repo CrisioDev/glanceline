@@ -33,6 +33,9 @@ const MIME = {
 };
 const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
 const STREAMDECK_PLUGIN = path.join(__dirname, '..', 'integrations', 'streamdeck', 'io.github.crisiodev.glanceline.sdPlugin');
+// Chrome-Erweiterung muss für „Entpackte Erweiterung laden“ außerhalb von app.asar liegen
+const SLIDES_EXTENSION = path.join(__dirname, '..', 'integrations', 'chrome-slides').replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+const SLIDES_TIMEOUT_MS = 8000; // ohne Lebenszeichen gilt die Präsentation als beendet
 
 // Ist die Stream-Deck-Software da, ist unser Plugin schon installiert?
 function streamDeckInfo() {
@@ -243,7 +246,11 @@ class Glanceline extends EventEmitter {
       this.touch();
     });
     this.folder.on('files', (files) => this._syncFolder(files));
-    this.ppt.on('update', (p) => this._ppt(p));
+    // Google Slides hat Vorrang, solange die Erweiterung meldet
+    this.ppt.on('update', (p) => {
+      this.lastPowerPoint = p;
+      if (!this._slidesActive()) this._ppt(p);
+    });
     this.ppt.on('log', (l) => l && console.warn('[ppt]', l));
     this.voice.on('status', (st) => { this.live.voice = { ...st, lang: this.voiceLang() }; this.touch(); });
     this.voice.on('downloaded', () => this._syncVoice());
@@ -374,6 +381,8 @@ class Glanceline extends EventEmitter {
         originOk = false;
       }
     }
+    // Einzige Ausnahme: die Google-Slides-Erweiterung darf Folien melden (sonst nichts)
+    if (!originOk && req.method === 'POST' && req.url.split('?')[0] === '/api/slides' && /^chrome-extension:\/\/[a-p]{32}$/.test(String(req.headers.origin))) originOk = true;
     const type = String(req.headers['content-type'] || '');
     const jsonOk = req.method !== 'POST' || type.startsWith('application/json') || (req.url.startsWith('/api/voice/audio') && type === 'application/octet-stream');
     if (hostOk && originOk && jsonOk) return true;
@@ -427,6 +436,10 @@ class Glanceline extends EventEmitter {
         return sendJson(res, { ok: true });
       }
       if (p === '/api/scripts') return sendJson(res, this.scriptOp(body));
+      if (p === '/api/slides') {
+        this.slides(body);
+        return sendJson(res, { ok: true });
+      }
       if (p === '/api/voice/script') {
         const words = (Array.isArray(body.words) ? body.words : []).map((x) => ({ w: String(x.w || ''), h: Boolean(x.h) })).filter((x) => x.w);
         this.voice.setScript(words);
@@ -650,6 +663,39 @@ class Glanceline extends EventEmitter {
       this.live.prevMode = null;
     }
     this.touch();
+  }
+
+  // ---------- Google Slides (über die Chrome-Erweiterung) ----------
+
+  slides(b = {}) {
+    const running = b.running !== false;
+    clearTimeout(this.slidesTimer);
+    if (!running) return this._slidesEnded();
+    this.slidesAt = Date.now();
+    this.slidesTimer = setTimeout(() => this._slidesEnded(), SLIDES_TIMEOUT_MS);
+    const title = String(b.presentation || '').slice(0, 200);
+    this._ppt({
+      running: true,
+      mode: 'show',
+      slide: clamp(Number(b.slide) || 0, 0, 9999),
+      total: clamp(Number(b.total) || 0, 0, 9999),
+      title: '',
+      notes: String(b.notes || '').slice(0, 20000),
+      nextTitle: '',
+      file: title ? `Google Slides · ${title}` : 'Google Slides',
+    });
+  }
+
+  _slidesActive() {
+    return Boolean(this.slidesAt && Date.now() - this.slidesAt < SLIDES_TIMEOUT_MS);
+  }
+
+  _slidesEnded() {
+    if (!this.slidesAt) return;
+    this.slidesAt = 0;
+    clearTimeout(this.slidesTimer);
+    // Zurück zu PowerPoint (falls offen) bzw. Präsentation beendet
+    this._ppt(this.lastPowerPoint && this.lastPowerPoint.running ? this.lastPowerPoint : { running: false, mode: 'none' });
   }
 
   // ---------- Aktionen (Panel, Hotkeys, Tray) ----------
@@ -900,6 +946,9 @@ class Glanceline extends EventEmitter {
         break;
       }
 
+      case 'slides:folder':
+        this.emit('openPath', SLIDES_EXTENSION);
+        break;
       case 'streamdeck:install': {
         // Plugin-Datei öffnen – die Stream-Deck-Software installiert bzw. aktualisiert es dann selbst
         const file = path.join(os.tmpdir(), 'Glanceline.streamDeckPlugin');
