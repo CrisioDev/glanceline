@@ -2,7 +2,7 @@
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "UUID": "io.github.crisiodev.glanceline",
   "Name": "Glanceline",
-  "Version": "0.3.0.0",
+  "Version": "0.5.0.0",
   "Author": "Crisio",
   "URL": "https://github.com/CrisioDev/glanceline",
   "Description": "Control the Glanceline teleprompter: modes, script, hold-to-scroll, show timer and more – with live state on your keys.",

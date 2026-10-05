@@ -6,6 +6,8 @@ New entries go under **Unreleased**. `npm version <x.y.z>` turns that section in
 
 ## [Unreleased]
 
+## [0.5.0] – 2026-10-05
+
 First public release.
 
 ### Prompter modes
