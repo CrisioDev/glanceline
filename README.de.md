@@ -110,6 +110,10 @@ Strg+Alt+Buchstabe ist bewusst ausgespart, weil das auf deutschen Tastaturen Alt
   - GitHub, einmal am Tag, um nach einer neuen Version zu sehen (abschaltbar unter *Einstellungen → Start → Nach Updates suchen*).
 - Es gibt keine Telemetrie und keine Cloud. Ein Twitch-Login ist optional. Die Schriften sind mitgeliefert.
 
+## Unterstützen
+
+Glanceline ist kostenlos und quelloffen. Wenn es dir bei Streams oder Vorträgen hilft, kannst du es auf [Ko-fi](https://ko-fi.com/thecrisio) unterstützen oder auf [Twitch](https://www.twitch.tv/thecrisio) vorbeischauen. Fehlerberichte und Ideen helfen auch.
+
 ## Lizenz
 
 Siehe [LICENSE](LICENSE). Die mitgelieferten Schriften stehen unter der SIL Open Font License 1.1, siehe [`public/fonts/LICENSES`](public/fonts/LICENSES).

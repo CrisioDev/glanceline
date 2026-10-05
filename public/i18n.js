@@ -383,6 +383,7 @@
       'about.logs': 'Open log folder',
       'about.report': 'Report a bug',
       'about.changes': 'What’s new',
+      'about.supportHint': 'Glanceline is free and open source. If it helps your streams or talks, you can support it here:',
 
       // Tray & Fenster (Electron)
       'tray.tooltip': 'Glanceline – teleprompter companion',
@@ -1077,6 +1078,7 @@
       'about.logs': 'Protokoll-Ordner öffnen',
       'about.report': 'Fehler melden',
       'about.changes': 'Neuigkeiten',
+      'about.supportHint': 'Glanceline ist kostenlos und quelloffen. Wenn es dir bei Streams oder Vorträgen hilft, kannst du es hier unterstützen:',
 
       'tray.tooltip': 'Glanceline – Teleprompter-Begleiter',
       'tray.open': 'Steuerung öffnen',
