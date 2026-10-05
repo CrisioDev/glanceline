@@ -1,0 +1,71 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Security problems please via [SECURITY.md](https://github.com/CrisioDev/glanceline/security/policy), not here.
+        Deutsch ist auch okay.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Switch to script mode
+        2. Press Ctrl+Alt+Num 5
+        3. …
+  - type: input
+    id: version
+    attributes:
+      label: Glanceline version
+      description: Shown in the tray tooltip and at the top of the log file.
+      placeholder: 0.5.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Chat (Twitch / YouTube / Kick / emotes)
+        - Script / voice tracking
+        - OBS
+        - Slides (PowerPoint / Keynote / Google Slides)
+        - Camera
+        - Prompter display / detection / standby
+        - Hotkeys / clicker / Stream Deck / MIDI / phone
+        - Installer / update / startup
+        - Other
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Setup
+      description: Prompter model, display scaling, OBS version, clicker or pedal – whatever seems relevant.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file
+      description: |
+        Drag `glanceline.log` here or paste the relevant part.
+        Windows: `%APPDATA%\Glanceline\logs\glanceline.log` · macOS: `~/Library/Application Support/Glanceline/logs/glanceline.log`
+      render: text

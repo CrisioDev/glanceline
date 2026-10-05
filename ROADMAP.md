@@ -42,10 +42,17 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 - [x] Bundled fonts (offline, no Google requests)
 - [x] Installer + portable build, GitHub Actions release workflow
 - [x] License (MIT), final name, app ID
-- [ ] Public repo (private for now)
+- [x] Public repo
+- [x] CI on Windows and macOS: translations, syntax, versions, unit tests, smoke test of the real app
+- [x] Release pipeline: tag → verify → build → smoke-test the built apps → draft release with checksums and build provenance
+- [x] One version for app, Stream Deck plugin and Chrome extension; CHANGELOG
+- [x] Hardening: Content Security Policy, Electron fuses, safe external links, crash recovery for prompter windows, local log file
+- [x] SECURITY.md, CONTRIBUTING.md, issue forms, Dependabot
 - [ ] README screenshots / GIF
-- [ ] Code signing (e.g. SignPath Foundation for OSS) — avoids the SmartScreen warning
-- [ ] Auto-update via GitHub Releases (`electron-updater`)
+- [ ] Code signing: SignPath Foundation (Windows), Apple Developer ID + notarization (macOS) — avoids the SmartScreen/Gatekeeper warnings
+- [ ] Update notifications or auto-update via GitHub Releases (`electron-updater`)
+- [ ] Intel Mac build
+- [ ] Chrome Web Store and Elgato Marketplace listings
 
 ## Phase 1 — Quick wins against real pain points (v0.3)
 
