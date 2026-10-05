@@ -110,6 +110,10 @@ Strg+Alt+Buchstabe ist bewusst ausgespart, weil das auf deutschen Tastaturen Alt
   - GitHub, einmal am Tag, um nach einer neuen Version zu sehen (abschaltbar unter *Einstellungen → Start → Nach Updates suchen*).
 - Es gibt keine Telemetrie und keine Cloud. Ein Twitch-Login ist optional. Die Schriften sind mitgeliefert.
 
+## Code-Signing
+
+Windows-Releases werden künftig kostenlos über [SignPath.io](https://about.signpath.io/) signiert, das Zertifikat stellt die [SignPath Foundation](https://signpath.org/). Releases bis 0.5.0 sind unsigniert. Details stehen in der [Code signing policy](README.md#code-signing-policy).
+
 ## Lizenz
 
 Siehe [LICENSE](LICENSE). Die mitgelieferten Schriften stehen unter der SIL Open Font License 1.1, siehe [`public/fonts/LICENSES`](public/fonts/LICENSES).
