@@ -53,7 +53,7 @@ const newId = () => crypto.randomBytes(6).toString('hex');
 function defaultSettings() {
   const de = resolveLang('auto') === 'de';
   return {
-    general: { language: 'auto', setupDone: false, startMode: 'chat', autostart: false, lan: false, port: 4890, token: newToken() },
+    general: { language: 'auto', setupDone: false, startMode: 'chat', autostart: false, lan: false, port: 4890, token: newToken(), updateCheck: true },
     display: {
       target: 'auto', // 'auto', Bildschirm-ID oder 'virtual' (schwebendes Fenster)
       virtualOpacity: 0.9,

@@ -332,6 +332,7 @@
         { k: 'general.language', l: 'settings.language', type: 'select', dyn: 'languages' },
         { k: 'general.autostart', l: 'settings.autostart', type: 'toggle', h: 'settings.autostartHint' },
         { k: 'general.startMode', l: 'settings.startMode', type: 'select', options: MODE_OPTIONS() },
+        { k: 'general.updateCheck', l: 'settings.updateCheck', type: 'toggle', h: 'settings.updateCheckHint' },
       ],
       extra: '<p class="hint" id="autostartState"></p>',
     },
@@ -742,7 +743,8 @@
     setText(btn.querySelector('span'), sd.installed ? t('integ.sdUpdate') : t('integ.sdInstall'));
     setText($('#apiUrl'), `${location.origin}/api/action`);
     $('#slidesFolder').hidden = !IS_LOCAL || !(live.app && live.app.desktop);
-    setText($('#aboutVersion'), `Glanceline ${(live.app && live.app.version) || ''}`.trim());
+    const up = live.update && live.update.available;
+    setText($('#aboutVersion'), `Glanceline ${(live.app && live.app.version) || ''}`.trim() + (up ? ` · ${t('about.update', { version: up.version })}` : ''));
     $('#logsOpen').hidden = !IS_LOCAL || !(live.app && live.app.desktop);
   }
 
@@ -1120,6 +1122,8 @@
     out.push(!o.connected ? chip('bad', 'OBS') : o.streaming ? chip('live', `LIVE ${S.fmtDur(o.streamMs + obsSince())}`) : chip('ok', 'OBS'));
     const pp = live.ppt || {};
     if (pp.running) out.push(pp.mode === 'show' ? chip('ok', t('chip.slide', { n: pp.slide, total: pp.total })) : chip('', 'PowerPoint'));
+    const up = live.update && live.update.available;
+    if (up) out.push(`<a class="chip warn" href="${esc(up.url)}" target="_blank" rel="noopener">${esc(t('chip.update', { version: up.version }))}</a>`);
     setHtml($('#chips'), out.join(''));
   }
 

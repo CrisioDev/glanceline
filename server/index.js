@@ -16,6 +16,7 @@ const { zipFolder } = require('./zip');
 const { ObsClient } = require('./obs');
 const { PowerPointWatcher } = require('./powerpoint');
 const { VoiceEngine, VOICE_LANGUAGES } = require('./voice');
+const { UpdateCheck } = require('./update');
 const { resolveLang, translator } = require('../public/i18n');
 
 const t = (lang, key, vars) => translator(lang)(key, vars);
@@ -187,6 +188,7 @@ class Glanceline extends EventEmitter {
       lan: { enabled: false, port: this.port, urls: [] },
       app: { desktop: false, autostart: false, streamDeck: streamDeckInfo(), version: VERSION },
       voice: {},
+      update: { available: null },
       mics: [],
     };
     this.twitch = new TwitchChat(() => this.settings);
@@ -197,6 +199,7 @@ class Glanceline extends EventEmitter {
     this.obs = new ObsClient(() => this.settings);
     this.ppt = new PowerPointWatcher();
     this.voice = new VoiceEngine({ dataDir });
+    this.update = new UpdateCheck({ current: VERSION });
   }
 
   get settings() {
@@ -209,6 +212,11 @@ class Glanceline extends EventEmitter {
     if (v !== 'auto') return v;
     const ui = this.lang();
     return VOICE_LANGUAGES.includes(ui) ? ui : 'en';
+  }
+
+  _syncUpdate() {
+    if (this.settings.general.updateCheck) this.update.start();
+    else this.update.stop();
   }
 
   _syncVoice() {
@@ -227,6 +235,7 @@ class Glanceline extends EventEmitter {
 
   // Ereignisse der Dienste mit dem Live-Zustand verbinden (eigene Methode, damit Tests sie ohne Netzwerk nutzen können)
   _wire() {
+    this.update.on('status', (st) => { this.live.update = st; this.touch(); });
     this.twitch.on('status', (st) => { this.live.twitch = st; this.touch(); });
     this.twitch.on('message', (m) => this._chat(m));
     this.twitch.on('clear', (c) => this._chatClear(c));
@@ -300,6 +309,7 @@ class Glanceline extends EventEmitter {
     this.obs.start();
     this.ppt.start();
     this._syncVoice();
+    this._syncUpdate();
     this.heartbeat = setInterval(() => {
       for (const c of this.clients) c.res.write(': ping\n\n');
     }, 20000);
@@ -314,6 +324,7 @@ class Glanceline extends EventEmitter {
     this.folder.stop();
     this.obs.stop();
     this.ppt.stop();
+    this.update.stop();
     this.voice.stop();
     this.store.flushAll();
     for (const c of this.clients) {
@@ -1198,7 +1209,7 @@ class Glanceline extends EventEmitter {
 
   patchSettings(patch) {
     if (!isObj(patch)) return;
-    const watched = ['clicker', 'outputs', 'twitch.clientId', 'library.folder', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
+    const watched = ['clicker', 'outputs', 'twitch.clientId', 'library.folder', 'chat.channel', 'chat.youtube', 'chat.kick', 'chat.providers', 'chat.hideBots', 'obs', 'general.lan', 'general.port', 'general.token', 'general.autostart', 'general.language', 'general.updateCheck', 'hotkeys', 'display', 'voice.enabled', 'voice.lang'];
     const snap = (k) => JSON.stringify(getPath(this.settings, k));
     const before = Object.fromEntries(watched.map((k) => [k, snap(k)]));
 
@@ -1247,6 +1258,7 @@ class Glanceline extends EventEmitter {
     if (changed('outputs')) this.emit('outputs');
     if (changed('general.autostart')) this.emit('autostart');
     if (changed('general.language')) this.emit('language');
+    if (changed('general.updateCheck')) this._syncUpdate();
     if (changed('voice.enabled') || changed('voice.lang') || (changed('general.language') && this.settings.voice.lang === 'auto')) this._syncVoice();
     if (changed('general.lan') || changed('general.port')) {
       setTimeout(() => this._relisten(), 150); // erst die laufende Antwort zustellen

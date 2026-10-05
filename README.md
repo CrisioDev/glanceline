@@ -116,7 +116,8 @@ The defaults avoid Ctrl+Alt+letter on purpose. On many European keyboards that c
   - the chats you set up: Twitch (anonymous read-only IRC), YouTube (the public live-chat endpoint, no API key) and Kick (its public chat websocket),
   - the public 7TV / BTTV / FFZ emote APIs and the 7TV EventAPI,
   - Twitch login and EventSub, only if you connect your Twitch account (read-only; the login is stored in `twitch-auth.json`, separate from the settings),
-  - your local OBS.
+  - your local OBS,
+  - GitHub, once a day, to check for a new version (turn off under *Settings → Start → Check for updates*).
 - There is no telemetry and no cloud. A Twitch login is optional. Fonts are bundled.
 - The local web server binds to `127.0.0.1`. Home-network access is opt-in and token-protected.
 

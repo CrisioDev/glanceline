@@ -50,7 +50,8 @@ Effort estimates: **S** = small, **M** = medium, **L** = large.
 - [x] SECURITY.md, CONTRIBUTING.md, issue forms, Dependabot
 - [ ] README screenshots / GIF
 - [ ] Code signing: SignPath Foundation (Windows), Apple Developer ID + notarization (macOS) — avoids the SmartScreen/Gatekeeper warnings
-- [ ] Update notifications or auto-update via GitHub Releases (`electron-updater`)
+- [x] Update notice in the panel (daily GitHub check, can be turned off)
+- [ ] Full auto-update (`electron-updater`) — after code signing
 - [ ] Intel Mac build
 - [ ] Chrome Web Store and Elgato Marketplace listings
 
