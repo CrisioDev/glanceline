@@ -374,7 +374,8 @@ class TwitchChat extends EventEmitter {
 
   _isHighlight(text) {
     const lower = text.toLowerCase();
-    if (this.channel && lower.includes(`@${this.channel}`)) return true;
+    // @kanal als ganzes Wort – „@kanalfan“ ist jemand anderes
+    if (this.channel && lower.split(`@${this.channel.toLowerCase()}`).slice(1).some((rest) => !/^[a-z0-9_]/.test(rest))) return true;
     return this.getSettings().chat.highlightWords.some((w) => w && lower.includes(w.toLowerCase()));
   }
 
