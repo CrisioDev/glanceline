@@ -11,7 +11,8 @@ function zip(entries) {
   const now = new Date();
   const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
   const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
-  for (const { name, data } of entries) {
+  for (const { name, data: raw } of entries) {
+    const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw); // Größen in Bytes, nicht in Zeichen
     const nameBuf = Buffer.from(name.replace(/\\/g, '/'), 'utf8');
     const packed = zlib.deflateRawSync(data, { level: 9 });
     const crc = zlib.crc32(data) >>> 0;

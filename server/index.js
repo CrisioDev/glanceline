@@ -407,9 +407,11 @@ class Glanceline extends EventEmitter {
       }
     }
     // Einzige Ausnahme: die Google-Slides-Erweiterung darf Folien melden (sonst nichts)
-    if (!originOk && req.method === 'POST' && req.url.split('?')[0] === '/api/slides' && /^chrome-extension:\/\/[a-p]{32}$/.test(String(req.headers.origin))) originOk = true;
+    // Ausnahmen nach dem normalisierten Pfad prüfen, wie ihn auch das Routing sieht (kein /api/voice/audio/../action)
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    if (!originOk && req.method === 'POST' && pathname === '/api/slides' && /^chrome-extension:\/\/[a-p]{32}$/.test(String(req.headers.origin))) originOk = true;
     const type = String(req.headers['content-type'] || '');
-    const jsonOk = req.method !== 'POST' || type.startsWith('application/json') || (req.url.startsWith('/api/voice/audio') && type === 'application/octet-stream');
+    const jsonOk = req.method !== 'POST' || type.startsWith('application/json') || (pathname === '/api/voice/audio' && type === 'application/octet-stream');
     if (hostOk && originOk && jsonOk) return true;
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Verboten');
