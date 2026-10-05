@@ -502,6 +502,7 @@
     { id: 'sec-network', title: 'settings.sec.network', custom: 'network' },
     { id: 'sec-integrations', title: 'settings.sec.integrations', custom: 'integrations' },
     { id: 'sec-hotkeys', title: 'settings.sec.hotkeys', custom: 'hotkeys' },
+    { id: 'sec-about', title: 'about.title', custom: 'about' },
   ];
 
   const ACTIONS = [
@@ -741,6 +742,16 @@
     setText(btn.querySelector('span'), sd.installed ? t('integ.sdUpdate') : t('integ.sdInstall'));
     setText($('#apiUrl'), `${location.origin}/api/action`);
     $('#slidesFolder').hidden = !IS_LOCAL || !(live.app && live.app.desktop);
+    setText($('#aboutVersion'), `Glanceline ${(live.app && live.app.version) || ''}`.trim());
+    $('#logsOpen').hidden = !IS_LOCAL || !(live.app && live.app.desktop);
+  }
+
+  // Version, Log-Ordner und Fehlerbericht – alles, was ein guter Bug-Report braucht
+  function aboutHtml() {
+    const repo = 'https://github.com/CrisioDev/glanceline';
+    return `<p class="lead" id="aboutVersion"></p>
+      <p class="hint">${esc(t('about.logsHint'))}</p>
+      <div class="btn-row"><button class="btn sm" data-action="logs:open" id="logsOpen"><i data-icon="folder"></i><span>${esc(t('about.logs'))}</span></button><a class="btn sm" href="${repo}/issues/new/choose" target="_blank" rel="noopener"><span>${esc(t('about.report'))}</span></a><a class="btn sm" href="${repo}/blob/main/CHANGELOG.md" target="_blank" rel="noopener"><span>${esc(t('about.changes'))}</span></a></div>`;
   }
 
   function hotkeysHtml() {
@@ -764,6 +775,7 @@
       else if (sec.custom === 'profiles') body = profilesHtml();
       else if (sec.custom === 'outputs') body = outputsHtml();
       else if (sec.custom === 'midi') body = midiHtml();
+      else if (sec.custom === 'about') body = aboutHtml();
       else body = (sec.lead ? `<p class="lead">${esc(t(sec.lead))}</p>` : '') + sec.fields.map(fieldHtml).join('');
       return `<div class="card" id="${sec.id}"><div class="card-head"><h2>${esc(t(sec.title))}</h2></div>${body}${sec.extra || ''}</div>`;
     }).join('');

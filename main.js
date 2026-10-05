@@ -4,6 +4,8 @@
 // registriert die globalen Hotkeys und hängt sich in den Infobereich (Tray).
 const { app, BrowserWindow, Menu, Tray, dialog, globalShortcut, nativeImage, screen, session, shell } = require('electron');
 const fs = require('fs');
+const os = require('os');
+const util = require('util');
 const { execFile } = require('child_process');
 const path = require('path');
 const { Glanceline } = require('./server');
@@ -22,7 +24,8 @@ const argValue = (name) => {
   const i = process.argv.indexOf(name);
   return i >= 0 ? process.argv[i + 1] : null;
 };
-const SNAPSHOT_DIR = argValue('--snapshot'); // nur zum Testen: Screenshots speichern und beenden
+// Nur zum Testen: Screenshots speichern und beenden. In der installierten App nur mit GLANCELINE_TEST=1 (Rauchtest in CI)
+const SNAPSHOT_DIR = !app.isPackaged || process.env.GLANCELINE_TEST === '1' ? argValue('--snapshot') : null;
 
 let core = null;
 let prompterWin = null;
@@ -35,6 +38,79 @@ let hotkeysSuspended = false;
 const ALLOWED_PERMISSIONS = new Set(['media', 'midi', 'midiSysex']);
 
 app.setAppUserModelId(APP_ID);
+// Testläufe mit eigenem Profil, damit sie eine laufende Glanceline nicht über die Einzelinstanz-Sperre wecken
+if (SNAPSHOT_DIR && process.env.GLANCELINE_DATA) app.setPath('userData', path.join(path.resolve(process.env.GLANCELINE_DATA), 'chromium'));
+
+// Ein Fehler im Hauptprozess soll keinen Fehlerdialog mitten in den Stream legen – protokollieren reicht
+process.on('uncaughtException', (err) => console.error('[uncaught]', err));
+process.on('unhandledRejection', (err) => console.error('[unhandled]', err));
+
+// Eigene Seiten: der interne Server (127.0.0.1, localhost, out-<id>.localhost) auf seinem aktuellen Port
+function isOwn(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' && /^(127\.0\.0\.1|([a-z0-9-]+\.)?localhost)$/.test(u.hostname) && Boolean(core) && Number(u.port) === core.port;
+  } catch {
+    return false;
+  }
+}
+
+// Nur Webseiten im Standardbrowser öffnen – nie Dateien oder fremde Protokolle
+function openExternalSafe(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:' || u.protocol === 'http:') shell.openExternal(u.href);
+  } catch { /* ungültig */ }
+}
+
+app.on('web-contents-created', (_e, wc) => {
+  // Fenster zeigen nur Glanceline; fremde Links gehen in den Browser
+  wc.on('will-navigate', (e, url) => {
+    if (isOwn(url) || url.startsWith('blob:')) return;
+    e.preventDefault();
+    openExternalSafe(url);
+  });
+  // Abgestürzte Seite (z. B. Prompter mitten im Stream) neu laden – höchstens 3× pro Minute
+  const crashes = [];
+  wc.on('render-process-gone', (_ev, d) => {
+    console.error('[renderer]', d.reason, d.exitCode, wc.isDestroyed() ? '' : wc.getURL());
+    if (d.reason === 'clean-exit' || quitting) return;
+    const now = Date.now();
+    crashes.push(now);
+    while (crashes.length && now - crashes[0] > 60000) crashes.shift();
+    if (crashes.length <= 3) setTimeout(() => !wc.isDestroyed() && wc.reload(), 1000);
+  });
+  wc.on('unresponsive', () => console.warn('[renderer] unresponsive', wc.getURL()));
+});
+app.on('child-process-gone', (_e, d) => console.error('[child]', d.type, d.reason, d.exitCode));
+
+// ---------------------------------------------------------------- Protokoll
+// <Daten>/logs/glanceline.log – bleibt lokal, hilft bei Fehlerberichten. Ab 1 MB beim Start rotiert.
+const LOG_LIMIT = 5 * 1024 * 1024; // pro Sitzung höchstens so viel schreiben
+function setupLog(dir) {
+  try {
+    const logDir = path.join(dir, 'logs');
+    fs.mkdirSync(logDir, { recursive: true });
+    const file = path.join(logDir, 'glanceline.log');
+    if (fs.existsSync(file) && fs.statSync(file).size > 1024 * 1024) fs.renameSync(file, path.join(logDir, 'glanceline.old.log'));
+    const out = fs.createWriteStream(file, { flags: 'a' });
+    out.on('error', () => {});
+    let written = 0;
+    for (const level of ['log', 'warn', 'error']) {
+      const orig = console[level].bind(console);
+      console[level] = (...args) => {
+        orig(...args);
+        if (written > LOG_LIMIT) return;
+        const line = `${new Date().toISOString()} ${level.toUpperCase()} ${util.format(...args)}\n`;
+        written += line.length;
+        out.write(line);
+      };
+    }
+    console.log(`[glanceline] ${app.getVersion()} · Electron ${process.versions.electron} · ${process.platform} ${os.release()} ${process.arch}`);
+  } catch (e) {
+    console.error('[log]', e.message);
+  }
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -68,12 +144,12 @@ async function boot() {
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
   if (process.platform === 'darwin') app.on('activate', () => showPanel());
   const dir = process.env.GLANCELINE_DATA ? path.resolve(process.env.GLANCELINE_DATA) : app.getPath('userData');
+  setupLog(dir);
   if (migrateLegacyData(dir)) console.log(`[glanceline] settings migrated to ${dir}`);
   core = new Glanceline({ dataDir: dir });
   await core.start();
 
   // Kamera nur für die eigene, lokale Oberfläche freigeben
-  const isOwn = (url) => /^http:\/\/(127\.0\.0\.1|([a-z0-9-]+\.)?localhost):\d+/.test(url || '');
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
     // Kamera/Mikrofon und MIDI-Controller nur für die eigenen Seiten. Chromium fragt auch für MIDI ohne
     // SysEx inzwischen „midiSysex“ an; die Seite selbst fordert kein SysEx an.
@@ -116,7 +192,7 @@ async function boot() {
   });
   core.on('language', () => {
     updateTrayMenu();
-    if (tray) tray.setToolTip(t('tray.tooltip'));
+    if (tray) tray.setToolTip(`${t('tray.tooltip')} ${app.getVersion()}`);
     if (prompterWin && prompterKind === 'test') prompterWin.setTitle(t('tray.testWindowTitle'));
   });
   core.on('hotkeys:suspend', (on) => {
@@ -485,7 +561,7 @@ function showPanel() {
   panelWin.loadURL(core.baseUrl());
   panelWin.once('ready-to-show', () => panelWin.show());
   panelWin.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
   });
   panelWin.on('close', (e) => {
@@ -637,7 +713,7 @@ function applyAutostart() {
 function createTray() {
   const img = nativeImage.createFromPath(ICON_PNG).resize({ width: 16, height: 16, quality: 'best' });
   tray = new Tray(img);
-  tray.setToolTip(t('tray.tooltip'));
+  tray.setToolTip(`${t('tray.tooltip')} ${app.getVersion()}`);
   tray.on('click', showPanel);
   updateTrayMenu();
 }

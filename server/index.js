@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 const http = require('http');
 const fs = require('fs');
 const os = require('os');
@@ -19,6 +20,7 @@ const { resolveLang, translator } = require('../public/i18n');
 
 const t = (lang, key, vars) => translator(lang)(key, vars);
 
+const VERSION = require('../package.json').version;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -31,6 +33,21 @@ const MIME = {
   '.woff2': 'font/woff2',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
+// Nur eigene Skripte (blob: für das Mikrofon-AudioWorklet); Emotes, Badges und Avatare kommen von https-CDNs
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' blob:",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: mediastream:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join('; ');
 const MODES = ['chat', 'script', 'obs', 'ppt', 'camera'];
 const STREAMDECK_PLUGIN = path.join(__dirname, '..', 'integrations', 'streamdeck', 'io.github.crisiodev.glanceline.sdPlugin');
 // Chrome-Erweiterung muss für „Entpackte Erweiterung laden“ außerhalb von app.asar liegen
@@ -46,6 +63,13 @@ const ROLES = ['main', 'preview', 'panel', 'api']; // api = Stream Deck, Compani
 const HISTORY_SIZE = 120;
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+// Zeitkonstanter Vergleich des Zugangs-Tokens
+function sameToken(given, token) {
+  if (typeof given !== 'string' || !token) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(String(token));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const getPath = (obj, p) => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 const cleanText = (s) => String(s || '').replace(/\r\n?|\u000b/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -53,7 +77,7 @@ const cleanText = (s) => String(s || '').replace(/\r\n?|\u000b/g, '\n').replace(
 // Übernimmt nur Schlüssel, die es in den Einstellungen bereits gibt.
 function deepAssign(target, patch) {
   for (const [k, v] of Object.entries(patch)) {
-    if (!(k in target)) continue;
+    if (!Object.prototype.hasOwnProperty.call(target, k)) continue; // auch kein __proto__
     if (isObj(v) && isObj(target[k])) deepAssign(target[k], v);
     else target[k] = v;
   }
@@ -128,6 +152,7 @@ function sendJson(res, data, status = 200) {
 class Glanceline extends EventEmitter {
   constructor({ dataDir }) {
     super();
+    this.dataDir = dataDir;
     this.store = new Store(dataDir);
     this.clients = new Set();
     this.history = [];
@@ -160,7 +185,7 @@ class Glanceline extends EventEmitter {
       hotkeys: { errors: [], suspended: false },
       clients: { main: 0, preview: 0, panel: 0 },
       lan: { enabled: false, port: this.port, urls: [] },
-      app: { desktop: false, autostart: false, streamDeck: streamDeckInfo() },
+      app: { desktop: false, autostart: false, streamDeck: streamDeckInfo(), version: VERSION },
       voice: {},
       mics: [],
     };
@@ -358,11 +383,11 @@ class Glanceline extends EventEmitter {
     if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') return true;
     const token = this.settings.general.token;
     const cookie = /(?:^|;\s*)sfl=([^;]+)/.exec(req.headers.cookie || '');
-    if (url.searchParams.get('t') === token) {
-      res.setHeader('Set-Cookie', `sfl=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+    if (sameToken(url.searchParams.get('t'), token)) {
+      res.setHeader('Set-Cookie', `sfl=${token}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly`);
       return true;
     }
-    if (cookie && cookie[1] === token) return true;
+    if (cookie && sameToken(cookie[1], token)) return true;
     res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end('<!doctype html><meta charset="utf-8"><title>Glanceline</title><h1>No access · Kein Zugriff</h1><p>Please open the link (or scan the QR code) from the Glanceline panel.<br>Bitte den Link bzw. QR-Code aus dem Glanceline-Panel verwenden.</p>');
     return false;
@@ -393,6 +418,9 @@ class Glanceline extends EventEmitter {
 
   async _handle(req, res) {
     const url = new URL(req.url, 'http://localhost');
+    // Kein Referer an Emote-CDNs (Heimnetz-Adresse samt Zugangslink bleibt im Haus)
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
     if (!this._trusted(req, res) || !this._authorized(req, url, res)) return;
     const p = url.pathname;
 
@@ -468,7 +496,8 @@ class Glanceline extends EventEmitter {
         res.end('Nicht gefunden');
         return;
       }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+      const ext = path.extname(file).toLowerCase();
+      res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-cache', ...(ext === '.html' ? { 'Content-Security-Policy': CSP } : {}) });
       res.end(data);
     });
   }
@@ -983,6 +1012,9 @@ class Glanceline extends EventEmitter {
         break;
       case 'library:open':
         if (s.library.folder) this.emit('openPath', s.library.folder);
+        break;
+      case 'logs:open':
+        this.emit('openPath', path.join(this.dataDir, 'logs'));
         break;
       case 'library:clear':
         this.patchSettings({ library: { folder: '' } });

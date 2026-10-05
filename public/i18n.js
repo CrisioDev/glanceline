@@ -374,6 +374,12 @@
       'err.cam.denied': 'Camera access not allowed.',
       'err.cam.obs': 'OBS source: {msg}',
 
+      'about.title': 'About',
+      'about.logsHint': 'When something goes wrong, the log file helps. It stays on this computer until you attach it to a bug report.',
+      'about.logs': 'Open log folder',
+      'about.report': 'Report a bug',
+      'about.changes': 'What’s new',
+
       // Tray & Fenster (Electron)
       'tray.tooltip': 'Glanceline – teleprompter companion',
       'tray.open': 'Open controls',
@@ -1057,6 +1063,12 @@
       'err.cam.busy': 'Kamera ist belegt (vermutlich von OBS). Tipp: Als Quelle „OBS-Quelle“ wählen.',
       'err.cam.denied': 'Kein Kamerazugriff erlaubt.',
       'err.cam.obs': 'OBS-Quelle: {msg}',
+
+      'about.title': 'Über Glanceline',
+      'about.logsHint': 'Wenn etwas schiefgeht, hilft die Protokolldatei. Sie bleibt auf diesem Rechner, bis du sie einem Fehlerbericht anhängst.',
+      'about.logs': 'Protokoll-Ordner öffnen',
+      'about.report': 'Fehler melden',
+      'about.changes': 'Neuigkeiten',
 
       'tray.tooltip': 'Glanceline – Teleprompter-Begleiter',
       'tray.open': 'Steuerung öffnen',
