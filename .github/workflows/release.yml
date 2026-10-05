@@ -1,5 +1,8 @@
-# Baut bei jedem Versions-Tag (z. B. v0.2.0) den Windows-Installer und die portable .exe
-# und hängt beide an ein GitHub-Release (zunächst als Entwurf).
+# Bei jedem Versions-Tag (v1.2.3): prüfen, für Windows und macOS bauen, die gebauten Apps per Rauchtest starten
+# und ein Release als Entwurf anlegen – Installer, portable .exe, DMG/ZIP, Stream-Deck-Plugin, Chrome-Erweiterung,
+# SHA256SUMS.txt und Herkunftsnachweise (Build-Provenance). Veröffentlicht wird der Entwurf von Hand.
+# Manuell gestartet (Actions → Release → Run workflow) entstehen nur die Pakete als Artefakte, kein Release.
+# Ablauf: docs/RELEASING.md
 name: Release
 
 on:
@@ -8,39 +11,127 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - name: Tag matches package.json and CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node tools/version.js check "$GITHUB_REF_NAME"
+      - run: npm test
+      - run: npm audit --omit=dev --audit-level=moderate
 
+  build:
+    needs: verify
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+            app: dist/win-unpacked/Glanceline.exe
+          - os: macos-latest
+            target: --mac --arm64
+            app: dist/mac-arm64/Glanceline.app
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
       - run: npm ci
 
-      - name: Check translations
-        run: npm run check:i18n
-
-      - name: Syntax check
-        shell: bash
-        run: for f in main.js server/*.js public/*.js tools/*.js integrations/streamdeck/*.sdPlugin/bin/*.js; do node --check "$f"; done
-
-      - name: Build & publish
-        run: npx electron-builder --win --publish always
+      # Ohne Zertifikat unsigniert (macOS: ad hoc). Signieren: docs/RELEASING.md
+      - name: Build
+        run: npx electron-builder ${{ matrix.target }} --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Stream Deck plugin
-        run: npm run pack:streamdeck
+      - name: Smoke test of the built app
+        run: node tools/smoke.js "${{ matrix.app }}"
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/smoke
 
-      - name: Attach Stream Deck plugin to the release
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: gh release upload "$GITHUB_REF_NAME" dist/Glanceline.streamDeckPlugin --clobber
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest*.yml
+          retention-days: 14
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: smoke-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/smoke/snap
+            ${{ runner.temp }}/smoke/data/logs
+          retention-days: 7
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: dist-*
+          path: release
+          merge-multiple: true
+
+      - name: Stream Deck plugin and Chrome extension
+        run: |
+          npm run pack:streamdeck
+          npm run pack:slides
+          cp dist/Glanceline.streamDeckPlugin dist/glanceline-google-slides.zip release/
+
+      - name: Checksums
+        working-directory: release
+        run: |
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*
+
+      - name: Draft release
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          node tools/version.js notes "$version" > notes.md
+          flags=(--draft --verify-tag --title "Glanceline $version" --notes-file notes.md)
+          [[ "$version" == *-* ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" "${flags[@]}" release/*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
