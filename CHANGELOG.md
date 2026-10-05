@@ -36,5 +36,6 @@ First public release.
 
 - Windows 10/11 (installer and portable) and macOS 12+ on Apple Silicon.
 - English and German UI, system tray, start with the system.
-- No telemetry. Fonts are bundled; the app only talks to the chats, emote APIs and OBS you set up.
+- No telemetry. Fonts are bundled; the app only talks to the chats, emote APIs and OBS you set up, plus a daily update check on GitHub that you can turn off.
+- Update notice: when a new version is out, the panel shows it at the top with a link to the release.
 - Hardened local server (token for home-network access, CSRF and DNS-rebinding protection, Content Security Policy), Electron fuses, automatic recovery when a prompter window crashes, and a local log file for bug reports.

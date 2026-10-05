@@ -106,7 +106,8 @@ Strg+Alt+Buchstabe ist bewusst ausgespart, weil das auf deutschen Tastaturen Alt
   - den eingerichteten Chats: Twitch (anonym, nur lesend), YouTube (öffentlicher Livechat-Endpunkt, kein API-Key) und Kick (öffentlicher Chat-Websocket),
   - den öffentlichen Emote-APIs von 7TV, BTTV und FFZ sowie zur 7TV-EventAPI,
   - Twitch-Login und EventSub, nur wenn du dein Twitch-Konto verbindest (nur lesend; die Anmeldung liegt getrennt von den Einstellungen in `twitch-auth.json`),
-  - deinem lokalen OBS.
+  - deinem lokalen OBS,
+  - GitHub, einmal am Tag, um nach einer neuen Version zu sehen (abschaltbar unter *Einstellungen → Start → Nach Updates suchen*).
 - Es gibt keine Telemetrie und keine Cloud. Ein Twitch-Login ist optional. Die Schriften sind mitgeliefert.
 
 ## Lizenz

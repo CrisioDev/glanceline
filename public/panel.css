@@ -99,6 +99,7 @@ h1, h2, h3 { margin: 0; }
 .chip.ok { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
 .chip.warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
 .chip.bad { color: var(--bad); background: var(--bad-soft); border-color: transparent; }
+a.chip { text-decoration: none; }
 .chip.live { color: #fff; background: var(--live); border-color: transparent; }
 .chip.live::before { animation: blink 1.6s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .2; } }
