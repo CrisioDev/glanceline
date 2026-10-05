@@ -1,0 +1,20 @@
+# Wöchentlich: Updates für npm-Pakete (Electron, electron-builder, sherpa-onnx) und die gepinnten GitHub Actions
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      electron:
+        patterns: ['electron', 'electron-builder']
+      sherpa:
+        patterns: ['sherpa-onnx*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

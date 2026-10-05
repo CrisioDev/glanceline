@@ -45,12 +45,19 @@ Also included:
 
 ## Requirements
 
-- **Windows 10/11**, or **macOS 12+** on Apple Silicon. The macOS build is new and unsigned: right-click the app → *Open* the first time. On Windows, PowerPoint sync uses COM; on macOS, Keynote and PowerPoint are read via AppleScript (macOS asks once for permission).
+- **Windows 10/11**, or **macOS 12+** on Apple Silicon. On Windows, PowerPoint sync uses COM; on macOS, Keynote and PowerPoint are read via AppleScript (macOS asks once for permission).
 - Optional: OBS Studio 28+ (obs-websocket is built in), Microsoft PowerPoint, Keynote, or Chrome for Google Slides.
 
 ## Installation
 
-Download the installer or the portable `.exe` from the [Releases](../../releases) page and run it.
+Download the installer or the portable `.exe` (Windows) or the `.dmg` (Mac) from the [Releases](../../releases) page and run it.
+
+The builds are not code-signed yet, so the first start needs one extra click:
+
+- **Windows:** “Windows protected your PC” → *More info* → *Run anyway*.
+- **macOS 15 or newer:** open Glanceline once, then *System Settings → Privacy & Security* → *Open Anyway*. On macOS 12–14: right-click the app → *Open*.
+
+Every release lists SHA-256 checksums and build-provenance attestations, see [SECURITY.md](SECURITY.md#verifying-downloads).
 
 ### Run from source
 
@@ -102,7 +109,8 @@ The defaults avoid Ctrl+Alt+letter on purpose. On many European keyboards that c
 
 ## Data & privacy
 
-- Settings and scripts live in `%APPDATA%\Glanceline`. You can override the location with the `GLANCELINE_DATA` environment variable.
+- Settings and scripts live in `%APPDATA%\Glanceline` (macOS: `~/Library/Application Support/Glanceline`). You can override the location with the `GLANCELINE_DATA` environment variable.
+- A log file for bug reports is kept in the `logs` subfolder (*Settings → About → Open log folder*). It never leaves your computer unless you attach it to a report.
 - Voice tracking runs completely on your PC: no audio leaves your computer. The speech model (~70 MB, Kroko ASR by Banafo, CC BY-SA 4.0) is downloaded from Hugging Face on first use.
 - Glanceline talks only to:
   - the chats you set up: Twitch (anonymous read-only IRC), YouTube (the public live-chat endpoint, no API key) and Kick (its public chat websocket),
@@ -127,8 +135,9 @@ public/                   panel, prompter view, i18n.js, qr.js, fonts
 tools/                    icon generator, i18n check, dev shortcuts
 ```
 
-- `npm run dist` builds the Windows installer and the portable `.exe` into `dist/`.
-- `node tools/check-i18n.js` verifies that every UI text exists in every language.
+- `npm run check` verifies translations, syntax and version numbers; `npm test` runs the unit tests; `npm run smoke` starts the app, clicks through panel and prompter and fails on console errors. CI runs all three on Windows and macOS.
+- `npm run dist` builds the Windows installer and the portable `.exe` into `dist/`. Releases are built by GitHub Actions, see [docs/RELEASING.md](docs/RELEASING.md).
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests and translations.
 - `electron . --snapshot <dir> --snapshot-steps "chat:demo,wait3000,mode:chat,tab:live"` saves screenshots of the prompter and panel, then exits. Handy for visual checks.
 
 ### Translations

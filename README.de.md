@@ -45,12 +45,19 @@ Außerdem:
 
 ## Voraussetzungen
 
-- **Windows 10/11** oder **macOS 12+** auf Apple Silicon. Der Mac-Build ist neu und unsigniert: beim ersten Start Rechtsklick auf die App → *Öffnen*. Unter Windows läuft PowerPoint über COM, auf dem Mac werden Keynote und PowerPoint per AppleScript gelesen (macOS fragt einmal nach der Erlaubnis).
+- **Windows 10/11** oder **macOS 12+** auf Apple Silicon. Unter Windows läuft PowerPoint über COM, auf dem Mac werden Keynote und PowerPoint per AppleScript gelesen (macOS fragt einmal nach der Erlaubnis).
 - Optional: OBS Studio 28+ (obs-websocket ist eingebaut), Microsoft PowerPoint, Keynote oder Chrome für Google Slides.
 
 ## Installation
 
-Installer oder portable `.exe` von der [Releases](../../releases)-Seite laden und starten.
+Installer oder portable `.exe` (Windows) bzw. `.dmg` (Mac) von der [Releases](../../releases)-Seite laden und starten.
+
+Die Builds sind noch nicht code-signiert, deshalb braucht der erste Start einen Klick mehr:
+
+- **Windows:** „Der Computer wurde durch Windows geschützt“ → *Weitere Informationen* → *Trotzdem ausführen*.
+- **macOS 15 oder neuer:** Glanceline einmal öffnen, dann *Systemeinstellungen → Datenschutz & Sicherheit* → *Dennoch öffnen*. Unter macOS 12–14: Rechtsklick auf die App → *Öffnen*.
+
+Jedes Release enthält SHA-256-Prüfsummen und Herkunftsnachweise (Build-Provenance), siehe [SECURITY.md](SECURITY.md#verifying-downloads).
 
 Aus dem Quellcode: `npm install`, dann `npm start`.
 
@@ -92,7 +99,8 @@ Strg+Alt+Buchstabe ist bewusst ausgespart, weil das auf deutschen Tastaturen Alt
 
 ## Daten & Datenschutz
 
-- Einstellungen und Skripte liegen in `%APPDATA%\Glanceline`.
+- Einstellungen und Skripte liegen in `%APPDATA%\Glanceline` (macOS: `~/Library/Application Support/Glanceline`).
+- Für Fehlerberichte gibt es eine Protokolldatei im Unterordner `logs` (*Einstellungen → Über Glanceline → Protokoll-Ordner öffnen*). Sie verlässt den Rechner nie, außer du hängst sie selbst an.
 - Die Sprachsteuerung läuft komplett auf deinem PC, kein Ton verlässt den Rechner. Das Sprachmodell (~70 MB, Kroko ASR von Banafo, CC BY-SA 4.0) wird beim ersten Gebrauch von Hugging Face geladen.
 - Verbindungen gehen nur zu:
   - den eingerichteten Chats: Twitch (anonym, nur lesend), YouTube (öffentlicher Livechat-Endpunkt, kein API-Key) und Kick (öffentlicher Chat-Websocket),
