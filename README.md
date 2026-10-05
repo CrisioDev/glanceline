@@ -158,6 +158,10 @@ All texts live in [`public/i18n.js`](public/i18n.js). To add a language:
 2. Add the language to `LANGUAGE_OPTIONS`.
 3. Run the i18n check.
 
+## Support
+
+Glanceline is free and open source. If it helps your streams or talks, you can support it on [Ko-fi](https://ko-fi.com/thecrisio) or drop by on [Twitch](https://www.twitch.tv/thecrisio). Bug reports and ideas help too.
+
 ## License
 
 See [LICENSE](LICENSE). Bundled fonts (Atkinson Hyperlegible, Inter, Cormorant Garamond) are licensed under the SIL Open Font License 1.1; see [`public/fonts/LICENSES`](public/fonts/LICENSES).

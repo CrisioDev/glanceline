@@ -114,6 +114,10 @@ Strg+Alt+Buchstabe ist bewusst ausgespart, weil das auf deutschen Tastaturen Alt
 
 Windows-Releases werden künftig kostenlos über [SignPath.io](https://about.signpath.io/) signiert, das Zertifikat stellt die [SignPath Foundation](https://signpath.org/). Releases bis 0.5.0 sind unsigniert. Details stehen in der [Code signing policy](README.md#code-signing-policy).
 
+## Unterstützen
+
+Glanceline ist kostenlos und quelloffen. Wenn es dir bei Streams oder Vorträgen hilft, kannst du es auf [Ko-fi](https://ko-fi.com/thecrisio) unterstützen oder auf [Twitch](https://www.twitch.tv/thecrisio) vorbeischauen. Fehlerberichte und Ideen helfen auch.
+
 ## Lizenz
 
 Siehe [LICENSE](LICENSE). Die mitgelieferten Schriften stehen unter der SIL Open Font License 1.1, siehe [`public/fonts/LICENSES`](public/fonts/LICENSES).
