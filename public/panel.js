@@ -753,7 +753,9 @@
     const repo = 'https://github.com/CrisioDev/glanceline';
     return `<p class="lead" id="aboutVersion"></p>
       <p class="hint">${esc(t('about.logsHint'))}</p>
-      <div class="btn-row"><button class="btn sm" data-action="logs:open" id="logsOpen"><i data-icon="folder"></i><span>${esc(t('about.logs'))}</span></button><a class="btn sm" href="${repo}/issues/new/choose" target="_blank" rel="noopener"><span>${esc(t('about.report'))}</span></a><a class="btn sm" href="${repo}/blob/main/CHANGELOG.md" target="_blank" rel="noopener"><span>${esc(t('about.changes'))}</span></a></div>`;
+      <div class="btn-row"><button class="btn sm" data-action="logs:open" id="logsOpen"><i data-icon="folder"></i><span>${esc(t('about.logs'))}</span></button><a class="btn sm" href="${repo}/issues/new/choose" target="_blank" rel="noopener"><span>${esc(t('about.report'))}</span></a><a class="btn sm" href="${repo}/blob/main/CHANGELOG.md" target="_blank" rel="noopener"><span>${esc(t('about.changes'))}</span></a></div>
+      <p class="hint">${esc(t('about.supportHint'))}</p>
+      <div class="btn-row"><a class="btn sm" href="https://ko-fi.com/thecrisio" target="_blank" rel="noopener"><span>Ko-fi</span></a><a class="btn sm" href="https://www.twitch.tv/thecrisio" target="_blank" rel="noopener"><span>Twitch</span></a></div>`;
   }
 
   function hotkeysHtml() {
