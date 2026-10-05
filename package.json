@@ -11,14 +11,18 @@
   "scripts": {
     "start": "electron .",
     "server": "node server/index.js",
+    "test": "node --test \"test/*.test.js\"",
+    "check": "node tools/check-i18n.js && node tools/check-syntax.js && node tools/version.js check",
+    "smoke": "node tools/smoke.js",
+    "version": "node tools/version.js sync && git add CHANGELOG.md integrations/streamdeck/io.github.crisiodev.glanceline.sdPlugin/manifest.json integrations/chrome-slides/manifest.json",
+    "dist": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
     "icon": "node tools/make-icon.js",
     "shortcut": "electron tools/create-shortcuts.js",
-    "dist": "electron-builder --win",
     "check:i18n": "node tools/check-i18n.js",
     "pack:streamdeck": "node tools/pack-streamdeck.js",
     "icons:streamdeck": "electron tools/make-streamdeck-assets.js",
-    "pack:slides": "node tools/pack-slides.js",
-    "dist:mac": "electron-builder --mac"
+    "pack:slides": "node tools/pack-slides.js"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -50,6 +54,18 @@
       "node_modules/sherpa-onnx-darwin-arm64/**",
       "node_modules/sherpa-onnx-darwin-x64/**"
     ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
+    "publish": {
+      "provider": "github",
+      "releaseType": "draft"
+    },
     "win": {
       "icon": "assets/icon.ico",
       "target": [

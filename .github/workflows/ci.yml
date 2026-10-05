@@ -1,0 +1,72 @@
+# Prüft jeden Push auf main und jeden Pull Request auf Windows und macOS:
+# Übersetzungen, Syntax, Versionsnummern, Unit-Tests und ein Rauchtest der echten App (mit Screenshots).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Translations, syntax, versions
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: macOS bridges (JXA compiles, fonts, slides bridge reports “not running”)
+        if: runner.os == 'macOS'
+        run: |
+          osacompile -l JavaScript -o "$RUNNER_TEMP/mac-slides.scpt" server/mac-slides.js
+          node -e "require('./server/fonts').systemFonts().then((f) => { console.log(f.length + ' fonts'); if (f.length < 20) process.exit(1); })"
+          (osascript -l JavaScript server/mac-slides.js > "$RUNNER_TEMP/bridge.txt" 2>&1 &) ; sleep 4 ; pkill -f mac-slides.js || true
+          cat "$RUNNER_TEMP/bridge.txt"
+          grep -q '"running":false' "$RUNNER_TEMP/bridge.txt"
+
+      - name: Smoke test (app starts, panel and prompter render, no console errors)
+        run: npm run smoke
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/smoke
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: smoke-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/smoke/snap
+            ${{ runner.temp }}/smoke/data/logs
+          retention-days: 7
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Known vulnerabilities in shipped dependencies
+        run: npm audit --omit=dev --audit-level=moderate
