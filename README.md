@@ -121,6 +121,15 @@ The defaults avoid Ctrl+Alt+letter on purpose. On many European keyboards that c
 - There is no telemetry and no cloud. A Twitch login is optional. Fonts are bundled.
 - The local web server binds to `127.0.0.1`. Home-network access is opt-in and token-protected.
 
+## Code signing policy
+
+Windows releases will be signed with free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/). Releases up to 0.5.0 are unsigned.
+
+- Only files built by this repository's [release workflow](.github/workflows/release.yml) on GitHub-hosted runners from a tagged commit get signed. Every signing request is approved by hand.
+- Committers and reviewers: [@CrisioDev](https://github.com/CrisioDev)
+- Approvers: [@CrisioDev](https://github.com/CrisioDev)
+- Privacy: Glanceline only connects to the services listed under [Data & privacy](#data--privacy). That means the chats, emote services and OBS you set up, Twitch only if you log in, Hugging Face when you download a voice model, and GitHub once a day for the update check, which you can turn off. There is no telemetry, and no personal data is sent anywhere else.
+
 ## Development
 
 ```
