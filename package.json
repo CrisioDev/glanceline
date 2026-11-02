@@ -115,7 +115,7 @@
     }
   },
   "dependencies": {
-    "sherpa-onnx-node": "^1.13.8"
+    "sherpa-onnx-node": "^2.0.1"
   },
   "repository": {
     "type": "git",
